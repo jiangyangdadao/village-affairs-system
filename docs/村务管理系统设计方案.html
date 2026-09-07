@@ -1,0 +1,734 @@
+<title>村务管理系统设计方案</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+  :root {
+    --paper: #f2f3ef;
+    --sheet: #ffffff;
+    --ink: #24261f;
+    --ink-2: #595d52;
+    --ink-3: #8b8f82;
+    --rule: #e2e4dc;
+    --rule-strong: #cfd2c6;
+    --accent: #c03a2b;
+    --accent-soft: #f7eae7;
+    --blue: #2f6da8;
+    --blue-soft: #eaf1f7;
+    --green: #2e7d4f;
+    --green-soft: #e9f3ec;
+    --code-bg: #f4f5f1;
+    --code-ink: #3a3d34;
+    --qr-frame: #d8dacf;
+    --shadow: 0 1px 2px rgba(36, 38, 31, .05), 0 4px 14px rgba(36, 38, 31, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #17181a;
+      --sheet: #1f2123;
+      --ink: #e8e9e2;
+      --ink-2: #a8aba0;
+      --ink-3: #7d8076;
+      --rule: #2e302b;
+      --rule-strong: #3d3f38;
+      --accent: #e0553f;
+      --accent-soft: #3a2421;
+      --blue: #6fa3d4;
+      --blue-soft: #1f2c38;
+      --green: #5db381;
+      --green-soft: #1f2f26;
+      --code-bg: #1b1d1f;
+      --code-ink: #d5d7cd;
+      --qr-frame: #3d3f38;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #17181a;
+    --sheet: #1f2123;
+    --ink: #e8e9e2;
+    --ink-2: #a8aba0;
+    --ink-3: #7d8076;
+    --rule: #2e302b;
+    --rule-strong: #3d3f38;
+    --accent: #e0553f;
+    --accent-soft: #3a2421;
+    --blue: #6fa3d4;
+    --blue-soft: #1f2c38;
+    --green: #5db381;
+    --green-soft: #1f2f26;
+    --code-bg: #1b1d1f;
+    --code-ink: #d5d7cd;
+    --qr-frame: #3d3f38;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.85;
+  }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 40px 20px 80px; display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 36px; align-items: start; }
+
+  /* ---------- 左侧目录 ---------- */
+  .toc { position: sticky; top: 28px; font-size: 13px; }
+  .toc-label { font-size: 11px; letter-spacing: .18em; color: var(--ink-3); margin: 0 0 10px; padding-left: 12px; }
+  .toc a {
+    display: block; padding: 6px 12px; color: var(--ink-2); text-decoration: none;
+    border-left: 2px solid var(--rule-strong); border-radius: 0 4px 4px 0;
+  }
+  .toc a:hover, .toc a:focus-visible {
+    color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); outline: none;
+  }
+  .toc .toc-num { display: inline-block; width: 22px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+  /* ---------- 文档头（红头） ---------- */
+  .doc-head { border-top: 3px solid var(--accent); padding-top: 22px; }
+  .eyebrow { font-size: 12px; letter-spacing: .22em; color: var(--accent); margin: 0 0 10px; }
+  h1 {
+    font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
+    font-weight: 700; font-size: clamp(26px, 4vw, 34px);
+    margin: 0 0 10px; line-height: 1.35; text-wrap: balance; letter-spacing: .02em;
+  }
+  .doc-meta { color: var(--ink-3); font-size: 13px; margin: 0 0 26px; }
+  .doc-meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------- 摘要带 ---------- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 30px; }
+  .stat {
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .stat b {
+    display: block; font-family: "Noto Serif SC", "Songti SC", serif;
+    font-size: 26px; font-weight: 700; line-height: 1.2; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat span { font-size: 12.5px; color: var(--ink-3); }
+
+  /* ---------- 章节纸张 ---------- */
+  .sheet {
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px;
+    padding: 28px 32px 30px; margin-bottom: 24px; box-shadow: var(--shadow);
+    scroll-margin-top: 20px;
+  }
+  .sheet h2 {
+    font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 700;
+    font-size: 21px; margin: 0 0 6px; line-height: 1.4; text-wrap: balance;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  .secnum { font-size: 15px; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sheet .lede { color: var(--ink-2); font-size: 13.5px; margin: 0 0 20px; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+  .sheet h3 { font-size: 15.5px; font-weight: 700; margin: 26px 0 10px; }
+  .sheet h3:first-of-type { margin-top: 0; }
+  .sheet p { margin: 10px 0; }
+  .sheet ul, .sheet ol { margin: 10px 0; padding-left: 22px; }
+  .sheet li { margin: 5px 0; }
+  .sheet strong { font-weight: 700; }
+
+  /* ---------- 表格 ---------- */
+  .tbl-wrap { overflow-x: auto; margin: 14px 0; border: 1px solid var(--rule); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 560px; }
+  th, td { padding: 9px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
+  thead th {
+    background: var(--code-bg); color: var(--ink-2); font-weight: 500; font-size: 12.5px;
+    letter-spacing: .03em; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+  td b { font-weight: 700; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .ok { color: var(--green); font-weight: 700; }
+  .no { color: var(--ink-3); }
+  .tag { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag-red { background: var(--accent-soft); color: var(--accent); }
+  .tag-blue { background: var(--blue-soft); color: var(--blue); }
+  .tag-green { background: var(--green-soft); color: var(--green); }
+
+  /* ---------- 双码卡 ---------- */
+  .qr-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+  .qr-card {
+    background: #ffffff; border: 1px solid var(--qr-frame); border-radius: 10px;
+    padding: 18px; display: flex; align-items: center; gap: 16px;
+  }
+  .qr-card canvas { display: block; flex: none; }
+  .qr-card h4 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+  .qr-card p { margin: 0; font-size: 12.5px; color: #666; line-height: 1.6; }
+  .qr-card .code-red { color: #c03a2b; }
+  .qr-card .code-blue { color: #2f6da8; }
+  .qr-note { font-size: 12px; color: var(--ink-3); margin: 0 0 10px; }
+
+  /* ---------- 代码块 ---------- */
+  pre.code {
+    background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.7;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; margin: 12px 0;
+  }
+  pre.mermaid { margin: 16px 0; background: transparent; border: none; padding: 8px 0; font-family: inherit; }
+
+  /* ---------- 页脚 ---------- */
+  .foot { color: var(--ink-3); font-size: 12.5px; text-align: center; padding: 8px 0 0; }
+  .foot .dot { margin: 0 8px; }
+
+  @media (max-width: 900px) {
+    .page { grid-template-columns: 1fr; padding-top: 24px; }
+    .toc { position: static; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+    .toc-label { display: none; }
+    .toc a { white-space: nowrap; border-left: none; border-bottom: 2px solid var(--rule-strong); border-radius: 0; padding: 6px 10px; }
+    .toc a:hover { border-bottom-color: var(--accent); background: none; }
+    .toc .toc-num { display: none; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .qr-row { grid-template-columns: 1fr; }
+    .sheet { padding: 22px 18px 24px; }
+  }
+</style>
+
+<div class="page">
+  <nav class="toc" aria-label="目录">
+    <p class="toc-label">目录</p>
+    <a href="#s1"><span class="toc-num">01</span>项目概述</a>
+    <a href="#s2"><span class="toc-num">02</span>总体架构</a>
+    <a href="#s3"><span class="toc-num">03</span>访问与权限</a>
+    <a href="#s4"><span class="toc-num">04</span>数据库设计</a>
+    <a href="#s5"><span class="toc-num">05</span>功能模块</a>
+    <a href="#s6"><span class="toc-num">06</span>业务流程</a>
+    <a href="#s7"><span class="toc-num">07</span>Excel 模板与导入</a>
+    <a href="#s8"><span class="toc-num">08</span>技术选型</a>
+    <a href="#s9"><span class="toc-num">09</span>部署与运维</a>
+    <a href="#s10"><span class="toc-num">10</span>安全与隐私</a>
+    <a href="#s11"><span class="toc-num">11</span>后续演进</a>
+    <a href="#s12"><span class="toc-num">12</span>实施要点</a>
+  </nav>
+
+  <main>
+    <header class="doc-head">
+      <p class="eyebrow">村务数据 · 局域网 · 不上云</p>
+      <h1>村务管理系统设计方案</h1>
+      <p class="doc-meta"><b>版本</b> v1.0（已确认）　<b>日期</b> 2026-09-07　<b>形态</b> 单村局域网版 · 村电脑部署 · 手机浏览器访问</p>
+      <div class="stats">
+        <div class="stat"><b>1</b><span>台村内电脑</span></div>
+        <div class="stat"><b>1</b><span>个 exe 双击即用</span></div>
+        <div class="stat"><b>10</b><span>张数据表</span></div>
+        <div class="stat"><b>0</b><span>云端依赖</span></div>
+      </div>
+    </header>
+
+    <!-- 01 项目概述 -->
+    <section class="sheet" id="s1">
+      <h2><span class="secnum">01</span>项目概述</h2>
+      <p class="lede">为<b>一个村</b>建设一套轻量村务数据系统：村干部在村办公室电脑上维护台账，村民和管理人员用手机浏览器随时查看，数据全部保存在村内电脑，不上传任何云端服务器。</p>
+      <h3>核心价值</h3>
+      <ul>
+        <li><b>一次录入、处处复用</b>：户、人只录一次身份证，九类台账自动关联，户情报告自动聚合生成，杜绝重复填报。</li>
+        <li><b>手机随时查看</b>：村民扫蓝码输身份证查本户信息；村干部扫红码管理全村数据。</li>
+        <li><b>零门槛部署维护</b>：一键安装、双击启动、复制文件夹即备份，村干部无需技术背景。</li>
+      </ul>
+      <h3>已确认的需求决策</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th style="min-width:110px">决策点</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>组织范围</td><td>单村（数据模型预留多村扩展位，本版不实现）</td></tr>
+          <tr><td>部署位置</td><td>村内一台 Windows 10/11 电脑，长期开机</td></tr>
+          <tr><td>访问方式</td><td>仅局域网（手机连村 WiFi 用浏览器访问），不做远程访问</td></tr>
+          <tr><td>云端</td><td>不上传云端服务器；运行期零外网依赖（前端资源本地打包，不用 CDN）</td></tr>
+          <tr><td>村民查看</td><td>免登录浏览公开信息；<b>输入本人身份证号</b>查看本人所在户全部信息</td></tr>
+          <tr><td>管理操作</td><td>增删改 / 导入导出需输入<b>管理密码</b>（单一密码，无账号体系）</td></tr>
+          <tr><td>户情报告</td><td>系统从台账自动聚合生成，可导出 PDF</td></tr>
+          <tr><td>后台技术</td><td>Python FastAPI + SQLite</td></tr>
+          <tr><td>部署方式</td><td>一键安装 exe + 向日葵远程协助</td></tr>
+          <tr><td>访问入口</td><td>双二维码：<span class="tag tag-blue">蓝码 · 村民入口</span> <span class="tag tag-red">红码 · 管理入口</span>，安装时自动生成海报打印贴墙</td></tr>
+        </tbody>
+      </table></div>
+      <h3>明确不做（边界）</h3>
+      <ul>
+        <li>不做微信小程序（强制要求备案域名 + HTTPS 云服务器，与"不上云"冲突）</li>
+        <li>不做多村/乡镇/县级平台；不做线上办事申请、不接政务接口</li>
+        <li>不做流程审批、消息推送、通知中心；不使用 WPS 等第三方在线表格</li>
+        <li>不做 MySQL / Docker / 集群等重部署形态</li>
+      </ul>
+    </section>
+
+    <!-- 02 总体架构 -->
+    <section class="sheet" id="s2">
+      <h2><span class="secnum">02</span>总体架构</h2>
+      <p class="lede">单进程服务：FastAPI 同时承担网页托管、业务接口、数据存储三件事，数据 = 一个文件夹。</p>
+      <pre class="mermaid">
+flowchart LR
+    subgraph 村办公室
+        ROUTER[村路由器&lt;br/&gt;可选 IP-MAC 绑定固定IP]
+        PC[村电脑 Windows&lt;br/&gt;村务系统.exe 单进程]
+        subgraph PC内
+            WEB[FastAPI&lt;br/&gt;网页+接口一体服务]
+            STATIC[前端页面&lt;br/&gt;本地托管 零CDN]
+            DB[(data 文件夹&lt;br/&gt;SQLite数据库+附件+自动备份)]
+        end
+        WEB --- STATIC
+        WEB --- DB
+    end
+    VILLAGER[村民手机 连村WiFi&lt;br/&gt;扫蓝码 输身份证查本户] -- http://192.168.1.88:8080 --&gt; ROUTER
+    CADRE[村干部手机或电脑&lt;br/&gt;管理密码登录&lt;br/&gt;台账维护 导入导出] -- http://192.168.1.88:8080 --&gt; ROUTER
+    ROUTER --&gt; PC
+    DEV[开发者 远程协助&lt;br/&gt;向日葵/ToDesk] -.屏幕画面.-&gt; PC
+      </pre>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th style="min-width:110px">决策</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>服务形态</td><td>单进程：FastAPI + uvicorn，网页托管 + 业务接口 + 数据存储一体</td></tr>
+          <tr><td>数据库</td><td>SQLite 单文件（WAL 模式），村级规模（几千人、数万条记录）性能充裕</td></tr>
+          <tr><td>附件存储</td><td><span class="num">data/attachments/</span> 本地文件夹，数据库仅存文件索引</td></tr>
+          <tr><td>端口</td><td>默认 8080（可在设置中修改）</td></tr>
+          <tr><td>访问地址</td><td><span class="num">http://村电脑IP:8080</span>，推荐路由器绑定固定 IP（如 192.168.1.88）</td></tr>
+          <tr><td>二维码</td><td>系统实时读取本机 IP 自动生成，管理首页展示；安装时自动生成 A4 海报 PDF 打印贴墙</td></tr>
+          <tr><td>备份</td><td>数据 = <span class="num">data/</span> 一个文件夹；每日自动备份到 <span class="num">backup/YYYYMMDD/</span> 保留 30 份；双击 备份.bat 手动备份</td></tr>
+          <tr><td>前端</td><td>Vue 3 + Vant 4 构建为静态文件，FastAPI 本地托管，手机优先、桌面可用</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 03 访问与权限 -->
+    <section class="sheet" id="s3">
+      <h2><span class="secnum">03</span>访问与权限</h2>
+      <p class="lede">双入口、三级可见性：任何人看公开页，村民凭身份证看本户，管理员凭密码看全村。</p>
+      <p class="qr-note">海报二维码样式示意（安装时自动生成，非真实二维码）：</p>
+      <div class="qr-row">
+        <div class="qr-card">
+          <canvas data-qr="20260907" width="112" height="112" aria-hidden="true"></canvas>
+          <div>
+            <h4 class="code-blue">蓝码 · 村民入口</h4>
+            <p>手机连村 WiFi 扫码<br>看村情简介、查本户信息<br><b class="code-blue">访问路径 /</b></p>
+          </div>
+        </div>
+        <div class="qr-card">
+          <canvas data-qr="202609071" width="112" height="112" aria-hidden="true"></canvas>
+          <div>
+            <h4 class="code-red">红码 · 管理入口</h4>
+            <p>输入管理密码后<br>管理全村台账、导入导出<br><b class="code-red">访问路径 /admin</b></p>
+          </div>
+        </div>
+      </div>
+      <h3>权限矩阵</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>能力</th><th>免登录（任何人）</th><th>村民（输本人身份证）</th><th>管理员（输管理密码）</th></tr></thead>
+        <tbody>
+          <tr><td>村情简介</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+          <tr><td>公开的项目资料</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+          <tr><td>查看本人所在户全部信息</td><td class="no">—</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+          <tr><td>查看其他户 / 其他人数据</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td>台账新增 / 编辑 / 删除</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td>Excel 导入 / 导出</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td>附件上传 / 删除</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td>户情报告生成 / 导出 PDF</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td>操作日志 / 查询日志查看</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td>系统设置 / 备份 / 恢复</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+        </tbody>
+      </table></div>
+      <h3>村民身份证查询规则</h3>
+      <ol>
+        <li>村民在蓝码首页点"我的家庭"，输入本人身份证号（无需注册、无需密码）。</li>
+        <li>系统按身份证反查人员表 → 定位其所在户 → 展示该户完整信息（成员构成、政策享受、医保养老缴费、务工等）。</li>
+        <li>身份证不在台账中：提示"未查询到您的信息，请联系村干部登记"。</li>
+        <li>每次查询记录一条查询日志（时间、来源 IP、查询到的户、结果），村干部可在管理端审计。</li>
+        <li>隐私权衡说明：知道他人身份证号即可查看该户信息，这是"输身份证直查"方案的固有特性，已由需求方确认接受。系统不展示所查户以外的任何他人数据。</li>
+      </ol>
+      <h3>管理密码</h3>
+      <p>单一管理员密码（PBKDF2 哈希存储），登录后浏览器会话保持（Cookie，7 天或关闭即失效）；所有写操作在管理会话内进行并写入操作日志；密码可随时在系统管理中修改。</p>
+    </section>
+
+    <!-- 04 数据库设计 -->
+    <section class="sheet" id="s4">
+      <h2><span class="secnum">04</span>数据库设计</h2>
+      <p class="lede">核心模型：<b>户 → 人 → 标签</b>。九类台账 = 户标签或人标签；同一户/人只录一次，标签可叠加。</p>
+      <pre class="mermaid">
+erDiagram
+    HOUSEHOLD ||--o{ PERSON : "一户多人"
+    HOUSEHOLD ||--o{ HOUSEHOLD_TAG : "户标签"
+    PERSON ||--o{ PERSON_TAG : "人标签"
+    HOUSEHOLD ||--o{ ATTACHMENT : "户附件"
+    PERSON ||--o{ ATTACHMENT : "人附件"
+    PROJECT ||--o{ ATTACHMENT : "项目附件"
+    HOUSEHOLD_TAG }o--|| TAG_DICT : "标签类型"
+    PERSON_TAG }o--|| TAG_DICT : "标签类型"
+
+    HOUSEHOLD {
+        int id PK
+        string hz_name "户主姓名"
+        string hz_idcard "户主身份证 唯一"
+        string phone "联系电话"
+        string address "住址 组/门牌"
+        int member_count "家庭人数"
+        text remark "备注"
+    }
+    PERSON {
+        int id PK
+        int household_id FK
+        string name "姓名"
+        string idcard "身份证 唯一"
+        string gender "性别"
+        date birth "出生日期"
+        string relation "与户主关系"
+        string education "文化程度"
+        string health "健康状况"
+        string skill "劳动技能"
+        text remark "备注"
+    }
+    HOUSEHOLD_TAG {
+        int id PK
+        int household_id FK
+        string tag_type "脱贫/监测/低保/特困"
+        string status "享受中/已退出"
+        date start_date "纳入时间"
+        date end_date "退出时间"
+        json extra "该类台账专属字段"
+        text remark "备注"
+    }
+    PERSON_TAG {
+        int id PK
+        int person_id FK
+        string tag_type "残疾/党员/退役军人/务工/医保/养老"
+        string period "年度 医保养老用"
+        date start_date "开始时间"
+        date end_date "结束时间"
+        json extra "该类台账专属字段"
+        text remark "备注"
+    }
+    TAG_DICT {
+        string tag_type PK "标签类型编码"
+        string name "显示名"
+        string scope "household/person"
+        int sort "排序"
+    }
+    PROJECT {
+        int id PK
+        string name "项目名称"
+        string category "类别"
+        text content "建设内容"
+        decimal invest_amount "投资金额"
+        string fund_source "资金来源"
+        date start_date "开工时间"
+        date end_date "竣工时间"
+        string progress "当前进度"
+        int is_public "是否公开"
+        text remark "备注"
+    }
+    ATTACHMENT {
+        int id PK
+        string biz_type "挂载模块"
+        int biz_id "挂载对象id"
+        string filename "原文件名"
+        string path "存储路径"
+        int size "文件大小"
+        string mime "pdf/image"
+        datetime created_at
+    }
+      </pre>
+      <p>辅助表：<b>SETTINGS</b>（键值表：村名、管理密码哈希、备份周期等）、<b>OPERATION_LOG</b>（操作日志：时间、动作、模块、对象、变更前后 JSON、来源 IP）、<b>IMPORT_LOG</b>（导入记录：文件名、行数统计、逐行错误明细）。共 <b>10 张表</b>；户情报告不落表，运行时聚合生成。</p>
+      <h3>台账 → 标签映射与专属字段</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>台账</th><th>挂载</th><th style="min-width:150px">tag_type</th><th>extra 专属字段</th></tr></thead>
+        <tbody>
+          <tr><td><b>脱贫户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">poverty_alleviated</td><td>脱贫年度、致贫原因、帮扶责任人、帮扶措施</td></tr>
+          <tr><td><b>三类监测户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">monitoring</td><td>监测类别（脱贫不稳定户/边缘易致贫户/突发严重困难户）、风险类型、风险消除时间</td></tr>
+          <tr><td><b>低保户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">dibao</td><td>保障人数、月保障金、低保类别</td></tr>
+          <tr><td><b>特困供养户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">tekun</td><td>供养方式（集中/分散）、月供养金、护理等级</td></tr>
+          <tr><td><b>残疾人</b></td><td><span class="tag tag-blue">人标签</span></td><td class="num">disabled</td><td>残疾证号、残疾类别、残疾等级、发证日期</td></tr>
+          <tr><td><b>党员</b></td><td><span class="tag tag-blue">人标签</span></td><td class="num">party</td><td>入党时间、党内职务、组织关系所在地</td></tr>
+          <tr><td><b>退役军人</b></td><td><span class="tag tag-blue">人标签</span></td><td class="num">veteran</td><td>入伍时间、退役时间、优抚类别、是否悬挂光荣牌</td></tr>
+          <tr><td><b>务工信息</b></td><td><span class="tag tag-blue">人标签</span>（可多条）</td><td class="num">employment</td><td>工作地点、单位、工种、月收入、务工起止时间</td></tr>
+          <tr><td><b>城乡医保</b></td><td><span class="tag tag-blue">人标签</span>（按年度）</td><td class="num">medical</td><td>年度、参保状态、缴费档次、缴费金额、缴费时间</td></tr>
+          <tr><td><b>养老保险</b></td><td><span class="tag tag-blue">人标签</span>（按年度）</td><td class="num">pension</td><td>年度、缴费档次、缴费金额、领取状态、月养老金</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li><span class="num">extra</span> 为 JSON 列，字段名在代码配置（<span class="num">ledger_config.py</span>）中定义，页面表单与 Excel 模板据此自动生成；新增台账类型不改表结构。</li>
+        <li>身份证是人员天然主键（唯一索引）；户主身份证在户表唯一。</li>
+        <li>同一户可带多个户标签（如既是脱贫户又是低保户）；同一人可带多个人标签（如既是党员又是退役军人）。</li>
+        <li>医保/养老按"人 × 年度"多条记录，天然支持历年缴费台账。</li>
+      </ul>
+      <h3>操作日志字段</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="num">op_time</td><td>操作时间</td></tr>
+          <tr><td class="num">op_type</td><td>新增 / 编辑 / 删除 / 导入 / 导出 / 上传附件 / 删除附件 / 修改密码 / 备份 / 村民查询</td></tr>
+          <tr><td class="num">module</td><td>所属台账模块</td></tr>
+          <tr><td class="num">biz_type / biz_id</td><td>操作对象类型与 id</td></tr>
+          <tr><td class="num">before_json / after_json</td><td>变更前后完整数据（删除操作凭 before_json 可恢复）</td></tr>
+          <tr><td class="num">ip / note</td><td>来源 IP；备注（导入结果摘要等）</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 05 功能模块 -->
+    <section class="sheet" id="s5">
+      <h2><span class="secnum">05</span>功能模块</h2>
+      <p class="lede">6 大模块，全部在一个网页内。台账共用一套通用引擎，交互刻意保持朴素：手机端以查看为主，录入编辑在电脑上进行。</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th style="min-width:130px">模块</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>1. 首页</b><br><span class="tag tag-blue">村民入口</span></td>
+            <td>村情简介（富文本+图片）、公开的项目资料、"我的家庭"身份证查询入口、访问二维码展示（自动读取本机 IP 生成）。</td>
+          </tr>
+          <tr>
+            <td><b>2. 台账中心</b><br><span class="tag tag-red">管理入口</span></td>
+            <td>10 类台账，每类：列表（搜索/筛选/排序/分页）、详情、新增/编辑/删除、<b>Excel 模板下载 / 批量导入 / 导出</b>、附件上传（PDF、图片，每文件 20MB 内，图片自动压缩缩略图）。</td>
+          </tr>
+          <tr>
+            <td><b>3. 户情报告</b><br><span class="tag tag-red">管理入口</span></td>
+            <td>选一户 → 自动聚合：户基本信息、家庭成员表、政策享受清单（含金额）、务工情况、医保养老缴费（近 5 年）、政策性收入合计 → 网页预览 → 导出 PDF（A4，reportlab 生成）。</td>
+          </tr>
+          <tr>
+            <td><b>4. 乡村项目资料</b></td>
+            <td>项目列表（名称、类别、投资金额、进度、是否公开）、详情、附件；标记"公开"的项目出现在村民免登录首页。</td>
+          </tr>
+          <tr>
+            <td><b>5. 操作日志与导入记录</b></td>
+            <td>操作日志按时间/动作/模块筛选，详情展开变更前后 JSON；村民查询日志（时间、IP、查询到的户、结果，可开关）；导入记录含逐行错误明细。</td>
+          </tr>
+          <tr>
+            <td><b>6. 系统管理</b></td>
+            <td>修改管理密码、立即备份/从备份恢复、系统设置（村名、查询日志开关、附件大小限制）、统计看板（各类户数人数、党员数、退役军人数、医保养老参保人数）。</td>
+          </tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 06 业务流程 -->
+    <section class="sheet" id="s6">
+      <h2><span class="secnum">06</span>业务流程</h2>
+      <p class="lede">五个核心流程：数据维护、村民查询、户情报告、备份恢复、部署。</p>
+      <h3>6.1 数据维护主流程</h3>
+      <pre class="mermaid">
+flowchart TD
+    A[电脑上按模板整理 Excel] --&gt; B[管理入口 → 台账 → 导入]
+    B --&gt; C[选择文件上传]
+    C --&gt; D{系统预校验&lt;br/&gt;身份证格式/必填项/重复行}
+    D -- 有错误 --&gt; E[错误报告 第几行什么问题&lt;br/&gt;修改后重新导入]
+    E --&gt; C
+    D -- 通过 --&gt; F[按身份证自动匹配&lt;br/&gt;已存在→更新 / 不存在→新增]
+    F --&gt; G[结果摘要 新增N户N人&lt;br/&gt;更新N条 + 写操作日志]
+    G --&gt; H[村民手机扫码/输身份证&lt;br/&gt;立即可见最新数据]
+      </pre>
+      <h3>6.2 村民查询流程</h3>
+      <pre class="mermaid">
+flowchart TD
+    A[村民连村WiFi 扫蓝码] --&gt; B[首页 村情简介/公开项目]
+    B --&gt; C[点 我的家庭]
+    C --&gt; D[输入本人身份证号]
+    D --&gt; E{台账中是否存在}
+    E -- 存在 --&gt; F[展示本户完整信息]
+    E -- 不存在 --&gt; G[提示联系村干部登记]
+    F --&gt; H[记录查询日志]
+    G --&gt; H
+      </pre>
+      <h3>6.3 户情报告流程</h3>
+      <pre class="mermaid">
+flowchart LR
+    A[管理入口 → 选一户] --&gt; B[自动聚合该户全部数据]
+    B --&gt; C[结构化预览页]
+    C --&gt; D[导出 PDF 存档/打印]
+    D --&gt; E[记录操作日志]
+      </pre>
+      <h3>6.4 备份与恢复流程</h3>
+      <pre class="mermaid">
+flowchart LR
+    A[每日自动备份&lt;br/&gt;data/ → backup/日期/] --&gt; B[保留最近30份&lt;br/&gt;自动清理更早的]
+    C[手动双击 备份.bat] --&gt; A
+    D[换电脑或数据故障] --&gt; E[新电脑一键安装后&lt;br/&gt;复制最新备份进 data/ → 即恢复]
+      </pre>
+      <h3>6.5 部署流程</h3>
+      <pre class="mermaid">
+flowchart TD
+    A[村干部收微信安装包] --&gt; B[双击 一键安装.exe]
+    B --&gt; C[自动解压+快捷方式+开机自启+防火墙+检测IP]
+    C --&gt; D[自动生成使用海报PDF&lt;br/&gt;蓝码+红码+说明 并打开]
+    D --&gt; E[打印海报贴墙]
+    E --&gt; F[手机连村WiFi扫码验证]
+    F --&gt; G{IP会变吗}
+    G -- 是 --&gt; H[路由器绑定固定IP&lt;br/&gt;开发者远程协助 1分钟]
+    G -- 否 --&gt; I[部署完成]
+    H --&gt; I
+      </pre>
+    </section>
+
+    <!-- 07 Excel -->
+    <section class="sheet" id="s7">
+      <h2><span class="secnum">07</span>Excel 模板与导入导出</h2>
+      <p class="lede">模板按"村里人看得懂"设计：下拉点选、示例行、逐行错误报告，导入后手机立即可见。</p>
+      <h3>模板规范（每类台账一个模板文件）</h3>
+      <ul>
+        <li><b>单 Sheet 宽表</b>，与村干部现有 Excel 台账样式一致：一户多行（每成员一行，户主信息列逐行重复），导入时按户主身份证自动归并。</li>
+        <li>表头固定；<b>第二行为灰色示例数据</b>，导入时自动跳过。</li>
+        <li>性别、与户主关系、监测类别、残疾等级、参保状态等列设置 <b>Excel 数据验证下拉</b>，点选式填写，不手敲。</li>
+        <li>必填列标 <span class="tag tag-red">*</span>；日期列统一格式 <span class="num">YYYY-MM-DD</span>；身份证列自动检查位数，默认文本格式避免科学计数法。</li>
+      </ul>
+      <h3>导入校验规则（预校验，有错不入库）</h3>
+      <ol>
+        <li>身份证格式：18 位（17 位数字 + 数字/X），15 位老号码警告不阻断。</li>
+        <li>必填项缺失：报行号 + 缺失列名。</li>
+        <li>同一文件内身份证重复：报重复行号，取最后一行。</li>
+        <li>出生日期未填时按身份证第 7-14 位自动补全。</li>
+        <li>下拉列取值不在字典内：报行号 + 非法值。</li>
+      </ol>
+      <h3>导入策略</h3>
+      <ul>
+        <li>匹配键：人员按身份证、户按户主身份证。<b>已存在 → 更新</b>（覆盖同名字段）；不存在 → 新增。</li>
+        <li>提供"仅新增，不覆盖已有"勾选项（默认覆盖）。</li>
+        <li>结果摘要：总行数、新增户/人、更新条数、失败条数 + 错误明细表（可导出错误 Excel）。</li>
+        <li>导入整体记入 IMPORT_LOG 与 OPERATION_LOG。</li>
+      </ul>
+      <h3>导出</h3>
+      <p>按当前列表筛选条件导出，列与台账模板一致，可直接当模板复用（首行表头，无示例行）。</p>
+    </section>
+
+    <!-- 08 技术选型 -->
+    <section class="sheet" id="s8">
+      <h2><span class="secnum">08</span>技术选型清单</h2>
+      <p class="lede">全部本地处理，运行期零外网依赖；打包进 exe，目标电脑无需安装任何环境。</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th style="min-width:120px">层</th><th>选型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>语言/框架</td><td>Python 3.11 + FastAPI + uvicorn</td><td>打包进 exe，目标电脑无需安装 Python</td></tr>
+          <tr><td>数据库</td><td>SQLite（WAL 模式）+ SQLAlchemy</td><td>单文件零运维，复制即备份</td></tr>
+          <tr><td>Excel</td><td>openpyxl</td><td>模板生成、数据验证、导入导出，全本地完成</td></tr>
+          <tr><td>PDF</td><td>reportlab</td><td>户情报告导出，Windows 打包无系统依赖</td></tr>
+          <tr><td>二维码</td><td>qrcode + Pillow</td><td>管理首页二维码、海报生成</td></tr>
+          <tr><td>密码</td><td>标准库 PBKDF2 哈希</td><td>无额外依赖</td></tr>
+          <tr><td>前端</td><td>Vue 3 + Vant 4（移动优先）+ Vite</td><td>构建产物本地托管，零 CDN</td></tr>
+          <tr><td>打包</td><td>PyInstaller 单 exe + 自解压一键安装</td><td>双击即装</td></tr>
+          <tr><td>远程协助</td><td>向日葵 / ToDesk（免费）</td><td>仅中转屏幕画面，数据不出村</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 09 部署与运维 -->
+    <section class="sheet" id="s9">
+      <h2><span class="secnum">09</span>部署与运维</h2>
+      <p class="lede">村干部拿到的就是一个文件：<b>村务系统-一键安装.exe</b>。双击后全自动完成部署。</p>
+      <h3>一键安装内容</h3>
+      <pre class="code">村务系统-一键安装.exe 双击后自动执行：
+  1. 解压程序到 D:\村务系统\（村务系统.exe + web/ 前端 + data/ 数据目录 + 备份.bat + 使用说明.txt）
+  2. 创建桌面快捷方式"村务系统"
+  3. 设置开机自启（启动文件夹）
+  4. 防火墙放行 8080 端口
+  5. 检测本机 IP，生成《使用海报.pdf》并自动打开：
+     村名 + 蓝码（村民入口）+ 红码（管理入口）+ 三句话使用说明
+  6. 完成。村干部打印海报贴墙即部署结束</pre>
+      <h3>远程部署协助（开发者视角）</h3>
+      <ol>
+        <li>村干部在村电脑安装向日葵，把识别码 + 验证码发给开发者。</li>
+        <li>开发者远程：上传并运行一键安装 → 浏览器验证 →（可选）路由器绑定固定 IP（1 分钟）→ 手机扫码验证 → 告知村干部管理密码。</li>
+      </ol>
+      <h3>固定 IP 方案</h3>
+      <ul>
+        <li>首选：路由器管理页做 IP-MAC 静态绑定（如 192.168.1.88），一次配置永久有效，海报二维码永不失效。</li>
+        <li>兜底：IP 变化后管理首页二维码自动更新，重打海报即可。</li>
+        <li>放弃主机名方案：安卓手机不支持 .local 名称解析，不可靠。</li>
+      </ul>
+      <h3>日常运维分工</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>场景</th><th>动作</th><th style="min-width:150px">执行者</th></tr></thead>
+        <tbody>
+          <tr><td>每日开机</td><td>系统自动启动，无需操作</td><td>自动</td></tr>
+          <tr><td>备份</td><td>每日自动备份保留 30 份 + 定期双击 备份.bat</td><td>自动 / 村干部</td></tr>
+          <tr><td>功能升级</td><td>开发者发新版 exe，替换后重启，data 目录不动</td><td>开发者远程或微信指导</td></tr>
+          <tr><td>排障</td><td>村干部开向日葵，开发者看日志修复</td><td>开发者</td></tr>
+          <tr><td>换电脑</td><td>一键安装到新电脑 → 复制最新备份进 data/ → 即恢复</td><td>开发者远程</td></tr>
+        </tbody>
+      </table></div>
+      <h3>硬件要求</h3>
+      <p>任意 Windows 10/11 电脑（4GB 内存以上），村里现有办公电脑即可；需长期开机、连接村 WiFi/路由器；电脑能上网（收微信安装包），系统运行本身不依赖外网。</p>
+    </section>
+
+    <!-- 10 安全与隐私 -->
+    <section class="sheet" id="s10">
+      <h2><span class="secnum">10</span>安全与隐私</h2>
+      <ol>
+        <li><b>数据不出村</b>：全部数据存于村电脑本地，运行期零外网请求。</li>
+        <li><b>管理密码</b>：PBKDF2 哈希存储；建议 8 位以上含字母数字；登录会话 Cookie。</li>
+        <li><b>操作审计</b>：所有写操作与村民查询记录日志（含变更前后 JSON、来源 IP），日志不提供删除功能。</li>
+        <li><b>局域网 HTTP 明文说明</b>：无 HTTPS（局域网无法备案证书），数据在村 WiFi 内明文传输；建议村 WiFi 使用 WPA2 密码且定期更换，管理密码不与 WiFi 密码相同。</li>
+        <li><b>身份证数据</b>：仅存村电脑，本版不做字段级加密（依赖 Windows 账户与实体安全）；如后期有等保要求可再加。</li>
+        <li><b>删除保护</b>：删除前数据完整写入日志可手工恢复；每日自动备份兜底。</li>
+      </ol>
+    </section>
+
+    <!-- 11 后续演进 -->
+    <section class="sheet" id="s11">
+      <h2><span class="secnum">11</span>后续可选演进（本版不做）</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>方向</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>远程访问</td><td>加 Tailscale/蒲公英组网，村干部离村也能访问；架构不变</td></tr>
+          <tr><td>多村版本</td><td>数据模型加 village 维度表 + 登录账号体系即可扩展</td></tr>
+          <tr><td>上云/小程序</td><td>如未来政策要求上微信小程序，需迁至云服务器 + 备案域名 + HTTPS；数据库与业务逻辑可直接复用</td></tr>
+          <tr><td>数据分析</td><td>基于台账做防返贫分析、收入结构统计等</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 12 实施要点 -->
+    <section class="sheet" id="s12">
+      <h2><span class="secnum">12</span>开发实施要点（供编写实施计划参考）</h2>
+      <ol>
+        <li>通用台账引擎先行：字段配置 → 表单/列表/详情自动渲染 → CRUD → 附件 → 日志，跑通低保户一个台账作为样板。</li>
+        <li>Excel 导入导出是质量关键：模板生成、预校验、错误报告、身份证归并需重点测试。</li>
+        <li>村民身份证查询与权限隔离必须用测试覆盖（只能看本户，绝不能越权看到他人）。</li>
+        <li>一键安装脚本在纯净 Windows 虚拟机中反复演练（无 Python 环境、不同 IP 段、中文路径）。</li>
+        <li>备份恢复演练：模拟数据目录损坏后从备份恢复全流程。</li>
+      </ol>
+    </section>
+
+    <p class="foot">村务管理系统 · 设计方案 v1.0<span class="dot">·</span>2026-09-07<span class="dot">·</span>状态：已确认设计</p>
+  </main>
+</div>
+
+<script>
+/* 双码示意：确定性伪随机 QR 样式图案（非真实二维码） */
+(function () {
+  var N = 25; /* 每边模块数 */
+  function lcg(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s = (s * 1103515245 + 12345) >>> 0;
+      return s / 4294967296;
+    };
+  }
+  function inFinder(r, c) {
+    return (r < 8 && c < 8) || (r < 8 && c >= N - 8) || (r >= N - 8 && c < 8);
+  }
+  function drawFinder(ctx, ox, oy, s, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(ox, oy, 7 * s, 7 * s);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(ox + s, oy + s, 5 * s, 5 * s);
+    ctx.fillStyle = color;
+    ctx.fillRect(ox + 2 * s, oy + 2 * s, 3 * s, 3 * s);
+  }
+  document.querySelectorAll("canvas[data-qr]").forEach(function (cv) {
+    var ctx = cv.getContext("2d");
+    var s = cv.width / N;
+    var color = cv.parentElement.querySelector("h4").classList.contains("code-blue") ? "#2f6da8" : "#c03a2b";
+    var rnd = lcg(parseInt(cv.dataset.qr, 10));
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        if (inFinder(r, c)) continue;
+        if (r === 6 || c === 6) { if ((r + c) % 2 === 0) ctx.fillStyle = color, ctx.fillRect(c * s, r * s, s, s); continue; }
+        if (rnd() < 0.42) { ctx.fillStyle = color; ctx.fillRect(c * s, r * s, s, s); }
+      }
+    }
+    drawFinder(ctx, 0, 0, s, color);
+    drawFinder(ctx, (N - 7) * s, 0, s, color);
+    drawFinder(ctx, 0, (N - 7) * s, s, color);
+  });
+})();
+</script>
