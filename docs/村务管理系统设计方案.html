@@ -226,7 +226,7 @@
       <p class="lede">为<b>一个村</b>建设一套轻量村务数据系统：村干部在村办公室电脑上维护台账，村民和管理人员用手机浏览器随时查看，数据全部保存在村内电脑，不上传任何云端服务器。</p>
       <h3>核心价值</h3>
       <ul>
-        <li><b>一次录入、处处复用</b>：户、人只录一次身份证，九类台账自动关联，户情报告自动聚合生成，杜绝重复填报。</li>
+        <li><b>一次录入、处处复用</b>：户、人只录一次身份证，十一类台账（含居民信息名册）自动关联，户情报告自动聚合生成，杜绝重复填报。</li>
         <li><b>手机随时查看</b>：村民扫蓝码输身份证查本户信息；村干部扫红码管理全村数据。</li>
         <li><b>零门槛部署维护</b>：一键安装、双击启动、复制文件夹即备份，村干部无需技术背景。</li>
       </ul>
@@ -344,7 +344,7 @@ flowchart LR
     <!-- 04 数据库设计 -->
     <section class="sheet" id="s4">
       <h2><span class="secnum">04</span>数据库设计</h2>
-      <p class="lede">核心模型：<b>户 → 人 → 标签</b>。九类台账 = 户标签或人标签；同一户/人只录一次，标签可叠加。</p>
+      <p class="lede">核心模型：<b>户 → 人 → 标签</b>。居民信息（人员名册）+ 十类台账 = 户标签或人标签；同一户/人只录一次，标签可叠加。</p>
       <pre class="mermaid">
 erDiagram
     HOUSEHOLD ||--o{ PERSON : "一户多人"
@@ -433,6 +433,7 @@ erDiagram
       <div class="tbl-wrap"><table>
         <thead><tr><th>台账</th><th>挂载</th><th style="min-width:150px">tag_type</th><th>extra 专属字段</th></tr></thead>
         <tbody>
+          <tr><td><b>居民信息</b></td><td>人员名册（非标签）</td><td class="num">—</td><td>姓名、身份证、住址、所属户等基础字段，直接查人员表</td></tr>
           <tr><td><b>脱贫户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">poverty_alleviated</td><td>脱贫年度、致贫原因、帮扶责任人、帮扶措施</td></tr>
           <tr><td><b>三类监测户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">monitoring</td><td>监测类别（脱贫不稳定户/边缘易致贫户/突发严重困难户）、风险类型、风险消除时间</td></tr>
           <tr><td><b>低保户</b></td><td><span class="tag tag-red">户标签</span></td><td class="num">dibao</td><td>保障人数、月保障金、低保类别</td></tr>
@@ -468,7 +469,7 @@ erDiagram
     <!-- 05 功能模块 -->
     <section class="sheet" id="s5">
       <h2><span class="secnum">05</span>功能模块</h2>
-      <p class="lede">6 大模块，全部在一个网页内。台账共用一套通用引擎，交互刻意保持朴素：手机端以查看为主，录入编辑在电脑上进行。</p>
+      <p class="lede">6 大模块，全部在一个网页内。台账共用一套通用引擎，交互刻意保持朴素：手机端以查看为主，录入编辑在电脑上进行。<b>管理首页为九宫格</b>：11 个数据台账入口（宫格带实时统计数）+ 6 个功能入口（户情报告、乡村项目、导入 Excel、操作日志、数据备份、系统设置），手机 3 列、电脑 6 列，红=户级台账、蓝=人员台账、灰=功能入口。</p>
       <div class="tbl-wrap"><table>
         <thead><tr><th style="min-width:130px">模块</th><th>说明</th></tr></thead>
         <tbody>
@@ -478,7 +479,7 @@ erDiagram
           </tr>
           <tr>
             <td><b>2. 台账中心</b><br><span class="tag tag-red">管理入口</span></td>
-            <td>10 类台账，每类：列表（搜索/筛选/排序/分页）、详情、新增/编辑/删除、<b>Excel 模板下载 / 批量导入 / 导出</b>、附件上传（PDF、图片，每文件 20MB 内，图片自动压缩缩略图）。</td>
+            <td>11 类台账（居民信息名册 + 十类标签台账），每类：列表（搜索/筛选/排序/分页）、详情、新增/编辑/删除、<b>Excel 模板下载 / 批量导入 / 导出</b>、附件上传（PDF、图片，每文件 20MB 内，图片自动压缩缩略图）。</td>
           </tr>
           <tr>
             <td><b>3. 户情报告</b><br><span class="tag tag-red">管理入口</span></td>
