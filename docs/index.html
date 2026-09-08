@@ -1,0 +1,78 @@
+<title>村务管理系统 · 设计资料</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+  :root {
+    --bg: #f4f3ef; --card: #fff; --ink: #24261f; --ink2: #5b5f55; --ink3: #8b8f82;
+    --rule: #e2e4dc; --red: #b01b2e; --gold: #c9a227; --gold-ink: #a3771f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181a; --card: #1f2123; --ink: #e8e9e2; --ink2: #a8aba0; --ink3: #7d8076; --rule: #2e302b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181a; --card: #1f2123; --ink: #e8e9e2; --ink2: #a8aba0; --ink3: #7d8076; --rule: #2e302b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.8;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 48px 22px 70px; }
+  .head { border-top: 4px solid var(--red); padding-top: 22px; margin-bottom: 30px; }
+  .head .eyebrow { font-size: 12px; letter-spacing: .22em; color: var(--red); margin: 0 0 8px; }
+  .head h1 {
+    font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 700; font-size: 30px;
+    margin: 0 0 8px; text-wrap: balance;
+  }
+  .head p { margin: 0; color: var(--ink3); font-size: 13.5px; }
+  .cards { display: grid; gap: 14px; }
+  a.card {
+    display: flex; align-items: center; gap: 18px; background: var(--card);
+    border: 1px solid var(--rule); border-radius: 12px; padding: 20px 24px;
+    text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(36,38,31,.05), 0 4px 14px rgba(36,38,31,.05);
+  }
+  a.card:hover { border-color: var(--red); }
+  a.card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .ic {
+    flex: none; width: 52px; height: 52px; border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Noto Serif SC", "Songti SC", serif; font-size: 22px; font-weight: 700;
+  }
+  .ic.red { background: var(--red); color: #fff; }
+  .ic.gold { background: var(--gold); color: #fff; }
+  .ic.grey { background: var(--rule); color: var(--ink2); }
+  .c-t { font-size: 16px; font-weight: 700; }
+  .c-s { font-size: 12.5px; color: var(--ink3); }
+  .c-note { display: inline-block; margin-left: 8px; font-size: 11px; color: var(--gold-ink); background: #f8f1e0; padding: 0 8px; border-radius: 999px; vertical-align: 1px; }
+  .foot { margin-top: 34px; text-align: center; color: var(--ink3); font-size: 12.5px; }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <p class="eyebrow">青山村 · 示例数据 · 非涉密</p>
+    <h1>村务管理系统 · 设计资料</h1>
+    <p>单村局域网版 · 村电脑部署 · 手机浏览器访问 · 不上云</p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="村务管理系统-UI效果图.html">
+      <span class="ic red">UI</span>
+      <span><span class="c-t">UI 效果图（网页版）<span class="c-note">推荐</span></span><br>
+      <span class="c-s">11 个关键界面 · 中国红党政风格 · 九宫格管理首页 · 手机电脑自适应</span></span>
+    </a>
+    <a class="card" href="村务管理系统-UI效果图.pdf">
+      <span class="ic gold">PDF</span>
+      <span><span class="c-t">UI 效果图（PDF 版）</span><br>
+      <span class="c-s">微信可直接转发 · 手机点开即看 · 适合村干部审阅</span></span>
+    </a>
+    <a class="card" href="村务管理系统设计方案.html">
+      <span class="ic grey">设</span>
+      <span><span class="c-t">设计方案（网页版）</span><br>
+      <span class="c-s">总体架构 · 10 张数据表 · 权限模型 · 业务流程 · 部署运维 · 技术选型</span></span>
+    </a>
+  </div>
+
+  <p class="foot">页面中所有人物、村名、数字均为虚构示例 · 更新于 2026-09-08</p>
+</div>
