@@ -11,11 +11,11 @@
 
 ## 设计资料（网页版入口）
 
-- 🖥 [UI 效果图（网页版）](https://github.com) —— 11 个关键界面
-- 📄 UI 效果图（PDF 版）—— 微信可直接转发
-- 📐 [设计方案（网页版）](https://github.com) —— 架构 / 数据库 / 权限 / 流程 / 部署
+入口页：https://jiangyangdadao.github.io/village-affairs-system/
 
-（部署到 GitHub Pages 后更新为实际链接）
+- 🖥 [UI 效果图（网页版）](https://jiangyangdadao.github.io/village-affairs-system/%E6%9D%91%E5%8A%A1%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F-UI%E6%95%88%E6%9E%9C%E5%9B%BE.html) —— 11 个关键界面，中国红党政风格
+- 📄 [UI 效果图（PDF 版）](https://jiangyangdadao.github.io/village-affairs-system/%E6%9D%91%E5%8A%A1%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F-UI%E6%95%88%E6%9E%9C%E5%9B%BE.pdf) —— 微信可直接转发
+- 📐 [设计方案（网页版）](https://jiangyangdadao.github.io/village-affairs-system/%E6%9D%91%E5%8A%A1%E7%AE%A1%E7%90%86%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%E6%96%B9%E6%A1%88.html) —— 架构 / 数据库 / 权限 / 流程 / 部署
 
 ## 文档目录
 
