@@ -46,7 +46,6 @@
   .cap { font-size: 13px; line-height: 1.7; color: var(--cv-ink2); }
   .cap b { color: var(--cv-ink); font-weight: 700; }
   .cap .who { display: inline-block; font-size: 11px; padding: 0 8px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
-  .who-v { background: #f8f1e0; color: #a3771f; }
   .who-m { background: #f7eae7; color: #b01b2e; }
   .who-d { background: #eceef1; color: #4a4f57; }
   .cap .pts { display: block; color: var(--cv-ink3); font-size: 12px; margin-top: 2px; }
@@ -85,8 +84,6 @@
     font-size: 14.5px; font-weight: 700; border: none; cursor: pointer; font-family: inherit;
   }
   .a-btn.red { background: #b01b2e; color: #fff; }
-  .a-btn.blue { background: #b01b2e; color: #fff; }
-  .a-btn.line { background: #fff; border: 1px solid #b01b2e; color: #b01b2e; }
   .a-input {
     width: 100%; border: 1px solid #dfe1d8; border-radius: 10px; padding: 11px 12px;
     font-size: 14px; background: #fff; color: #23251f; font-family: inherit;
@@ -112,18 +109,8 @@
   .a-chips { display: flex; gap: 8px; padding: 0 14px 10px; flex-wrap: wrap; }
   .a-chip { font-size: 12px; padding: 3px 12px; border-radius: 999px; background: #fff; border: 1px solid #e7e8e1; color: #6b6f64; }
   .a-chip.on { background: #b01b2e; border-color: #b01b2e; color: #fff; }
-  .a-tabbar {
-    flex: none; display: flex; border-top: 1px solid #e7e8e1; background: #fff; padding: 7px 0 10px;
-  }
-  .a-tabbar span { flex: 1; text-align: center; font-size: 11px; color: #8b8f82; }
-  .a-tabbar span.on { color: #b01b2e; font-weight: 700; }
-  .a-tabbar span::before { content: ""; display: block; width: 18px; height: 18px; margin: 0 auto 3px; border-radius: 5px; background: #d8dad1; }
-  .a-tabbar span:nth-child(2)::before { background: #b01b2e; opacity: .25; }
-  .a-tabbar span:nth-child(3)::before { background: #d8dad1; }
-  .a-actions { display: flex; gap: 8px; padding: 10px 14px 12px; flex: none; background: #fff; border-top: 1px solid #f0f1ec; }
-  .a-actions .a-btn { padding: 9px 0; font-size: 13px; flex: 1; }
 
-  /* ---------- 九宫格入口 ---------- */
+  /* 九宫格入口 */
   .a-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .a-tile { background: #fff; border: 1px solid #e7e8e1; border-radius: 12px; padding: 12px 4px 10px; text-align: center; }
   .a-tile .ic {
@@ -135,23 +122,6 @@
   .ic-ink { background: #c9a227; color: #fff; box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); }
   .a-tile .n { font-size: 12px; color: #23251f; font-weight: 500; }
   .a-tile .c { font-size: 10.5px; color: #8b8f82; margin-top: 1px; font-variant-numeric: tabular-nums; }
-  .d-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 14px; }
-  .d-tile { background: #fff; border: 1px solid #e7e8e1; border-radius: 10px; padding: 14px 6px 12px; text-align: center; }
-  .d-tile .ic {
-    width: 44px; height: 44px; border-radius: 11px; margin: 0 auto 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: "Noto Serif SC", "Songti SC", serif; font-size: 20px; font-weight: 700;
-  }
-  .d-tile .n { font-size: 12.5px; color: #23251f; font-weight: 500; }
-  .d-tile .c { font-size: 11px; color: #8b8f82; margin-top: 1px; font-variant-numeric: tabular-nums; }
-
-  /* 村景横幅 */
-  .a-banner { border-radius: 12px; overflow: hidden; margin-bottom: 12px; position: relative; }
-  .a-banner .label {
-    position: absolute; left: 14px; bottom: 12px; color: #fff; font-weight: 700; font-size: 16px;
-    text-shadow: 0 1px 3px rgba(0,0,0,.35);
-  }
-  .a-banner .label small { display: block; font-size: 11px; font-weight: 400; opacity: .9; }
 
   /* ---------- 电脑画框 ---------- */
   .desktop {
@@ -183,10 +153,15 @@
   .d-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
   .d-topbar .t1 { font-size: 16px; font-weight: 700; color: #23251f; }
   .d-topbar .t2 { font-size: 12px; color: #8b8f82; }
-  .d-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 14px; }
-  .d-stat { background: #fff; border: 1px solid #e7e8e1; border-radius: 10px; padding: 12px 14px; }
-  .d-stat b { display: block; font-size: 22px; color: #23251f; font-family: "Noto Serif SC", serif; font-variant-numeric: tabular-nums; }
-  .d-stat span { font-size: 11.5px; color: #8b8f82; }
+  .d-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 14px; }
+  .d-tile { background: #fff; border: 1px solid #e7e8e1; border-radius: 10px; padding: 14px 6px 12px; text-align: center; }
+  .d-tile .ic {
+    width: 44px; height: 44px; border-radius: 11px; margin: 0 auto 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Noto Serif SC", "Songti SC", serif; font-size: 20px; font-weight: 700;
+  }
+  .d-tile .n { font-size: 12.5px; color: #23251f; font-weight: 500; }
+  .d-tile .c { font-size: 11px; color: #8b8f82; margin-top: 1px; font-variant-numeric: tabular-nums; }
   .d-card { background: #fff; border: 1px solid #e7e8e1; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
   .d-card h4 { margin: 0 0 10px; font-size: 13.5px; color: #23251f; }
   .d-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -241,132 +216,21 @@
 
   @media (max-width: 860px) {
     .scene { width: 100%; align-items: center; }
-    .d-stats { grid-template-columns: repeat(3, 1fr); }
     .d-nav { display: none; }
   }
 </style>
 
 <div class="wrap">
   <header class="g-head">
-    <p class="eyebrow">UI 效果图 · 示例数据 · 待确认样式</p>
+    <p class="eyebrow">UI 效果图 · 仅管理人员使用 · 示例数据 · 待确认样式</p>
     <h1>村务管理系统 UI 效果图</h1>
-    <p>共 11 个关键界面：手机端 7 屏 + 电脑端 4 屏。所有人物、数字均为虚构示例，用于确认界面布局与交互方向。</p>
+    <p>共 8 个关键界面：手机端 4 屏 + 电脑端 4 屏。电脑端全功能（增删改、导入导出），手机端仅查看；两端数据完全一致，仅布局不同。所有人物、数字均为虚构示例。</p>
   </header>
 
-  <!-- ============ 手机端 · 村民视角 ============ -->
+  <!-- ============ 手机端 ============ -->
   <section class="g-sec">
-    <h2><span class="num">A</span>手机端 · 村民视角（蓝码入口）</h2>
-    <p class="sub">免登录浏览公开信息；输入本人身份证号查询本户信息，全程无需注册。</p>
-    <div class="frames">
-
-      <div class="scene">
-        <div class="phone">
-          <div class="p-status"><span>9:41</span><span class="icons"><i class="sig"></i><i class="sig"></i><i class="wifi"></i><i class="batt"></i></span></div>
-          <div class="p-body">
-            <div class="p-scroll">
-              <div class="a-banner">
-                <svg viewBox="0 0 312 120" width="312" height="120" aria-hidden="true">
-                  <rect width="312" height="120" fill="#e9ede3"/>
-                  <circle cx="246" cy="34" r="16" fill="#e8b96a" opacity=".85"/>
-                  <path d="M0 96 Q60 54 128 84 T312 70 V120 H0 Z" fill="#9fb78a"/>
-                  <path d="M0 108 Q70 78 150 98 T312 88 V120 H0 Z" fill="#7d9a6c"/>
-                  <path d="M34 120 V88 L46 74 L58 88 V120 Z" fill="#5e7d52" opacity=".8"/>
-                  <path d="M250 120 V92 L260 80 L270 92 V120 Z" fill="#5e7d52" opacity=".8"/>
-                </svg>
-                <div class="label">青山村<small>村务公开信息平台</small></div>
-              </div>
-              <div class="a-card">
-                <h4>村情简介</h4>
-                <p>青山村位于青山镇东南部，辖 5 个村民小组，户籍人口 1,286 人。全村耕地面积 1,240 亩，主导产业为水稻种植与光伏发电……</p>
-              </div>
-              <div class="a-card">
-                <h4>公开项目</h4>
-                <p><b style="color:#23251f">光伏电站项目</b>　<span class="a-tag t-green">已完工</span><br>装机容量 200kW，年发电收益约 12 万元。</p>
-              </div>
-              <button class="a-btn blue">我的家庭 · 输入身份证查询</button>
-            </div>
-            <div class="a-tabbar"><span class="on">首页</span><span>我的家庭</span><span>村务公开</span></div>
-          </div>
-        </div>
-        <p class="cap"><b>S1 村民首页</b><span class="who who-v">村民</span>
-          <span class="pts">村景横幅 + 村情简介 + 公开项目；底部主按钮直达"我的家庭"；数据由管理员维护，村民只读。</span></p>
-      </div>
-
-      <div class="scene">
-        <div class="phone">
-          <div class="p-status"><span>9:41</span><span class="icons"><i class="sig"></i><i class="sig"></i><i class="wifi"></i><i class="batt"></i></span></div>
-          <div class="p-body">
-            <div class="a-head">我的家庭<span class="sub">查询本户信息</span></div>
-            <div class="p-scroll">
-              <div class="a-card">
-                <h4>输入本人身份证号</h4>
-                <p>仅能查询您本人所在户的信息；每次查询都会被记录。</p>
-                <div style="height:10px"></div>
-                <input class="a-input" value="110101********0412" style="letter-spacing:.12em">
-                <div style="height:10px"></div>
-                <button class="a-btn red">查询</button>
-              </div>
-              <div class="a-card">
-                <h4>查不到我的信息？</h4>
-                <p>说明您尚未登记在村台账中，请携带身份证到村委会找村干部登记。</p>
-              </div>
-              <p class="a-note" style="padding:0 4px">· 查询仅展示您所在户的数据，不展示其他村民信息<br>· 身份证号仅用于匹配台账，不会存储到您的手机</p>
-            </div>
-            <div class="a-tabbar"><span>首页</span><span class="on">我的家庭</span><span>村务公开</span></div>
-          </div>
-        </div>
-        <p class="cap"><b>S2 身份证查询</b><span class="who who-v">村民</span>
-          <span class="pts">无账号无密码，身份证即凭证；查询留痕（后台可审计）；查不到时引导找村干部登记。</span></p>
-      </div>
-
-      <div class="scene">
-        <div class="phone">
-          <div class="p-status"><span>9:41</span><span class="icons"><i class="sig"></i><i class="sig"></i><i class="wifi"></i><i class="batt"></i></span></div>
-          <div class="p-body">
-            <div class="a-head">王建国 户<span class="sub">三组 12 号</span></div>
-            <div class="p-scroll">
-              <div class="a-card">
-                <h4>户主信息</h4>
-                <div class="a-row"><span class="k">户主</span><span class="v">王建国</span></div>
-                <div class="a-row"><span class="k">联系电话</span><span class="v">138****6721</span></div>
-                <div class="a-row"><span class="k">家庭人数</span><span class="v">3 人</span></div>
-              </div>
-              <div class="a-card">
-                <h4>家庭成员</h4>
-                <div class="a-row"><span class="k">王建国</span><span class="v">户主 · 62岁</span></div>
-                <div class="a-row"><span class="k">李秀兰</span><span class="v">配偶 · 60岁</span></div>
-                <div class="a-row"><span class="k">王强</span><span class="v">之子 · 35岁</span></div>
-              </div>
-              <div class="a-card">
-                <h4>政策享受</h4>
-                <p><span class="a-tag t-red">低保户</span>保障 3 人 · 月保障金 930 元<br>
-                <span class="a-tag t-amber">监测户</span>边缘易致贫户 · 2024-03 纳入</p>
-              </div>
-              <div class="a-card">
-                <h4>医保 · 养老（2025 年度）</h4>
-                <div class="a-row"><span class="k">城乡居民医保</span><span class="v">3 人已参保</span></div>
-                <div class="a-row"><span class="k">养老保险</span><span class="v">2 人缴费 · 1 人领取</span></div>
-              </div>
-              <div class="a-card">
-                <h4>务工信息</h4>
-                <p>王强：广东省深圳市 · 电子厂 · 月收入约 5,800 元</p>
-              </div>
-              <p class="a-note" style="padding:0 4px">数据由村委会维护更新。如有疑问请联系村干部：张文书 139****8801</p>
-            </div>
-            <div class="a-tabbar"><span>首页</span><span class="on">我的家庭</span><span>村务公开</span></div>
-          </div>
-        </div>
-        <p class="cap"><b>S3 本户信息页</b><span class="who who-v">村民</span>
-          <span class="pts">一户一页聚合全部台账：成员、政策享受、医保养老、务工；只显示本户，无任何他人数据入口。</span></p>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ============ 手机端 · 管理视角 ============ -->
-  <section class="g-sec">
-    <h2><span class="num">B</span>手机端 · 管理视角（红码入口）</h2>
-    <p class="sub">输入管理密码后可用手机维护数据；手机以查看为主，录入编辑建议在电脑上进行。</p>
+    <h2><span class="num">A</span>手机端（管理人员查看）</h2>
+    <p class="sub">与电脑端同一套数据、同一套九宫格入口，仅布局自适应手机；只读，不做编辑。</p>
     <div class="frames">
 
       <div class="scene">
@@ -375,7 +239,7 @@
           <div class="p-body">
             <div style="text-align:center;padding:46px 14px 18px">
               <div style="width:56px;height:56px;border-radius:14px;background:#b01b2e;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Noto Serif SC',serif;font-size:22px;font-weight:700">村</div>
-              <div style="font-size:17px;font-weight:700;color:#23251f">村务管理系统 · 管理入口</div>
+              <div style="font-size:17px;font-weight:700;color:#23251f">村务管理系统</div>
               <div style="font-size:12px;color:#8b8f82;margin-top:4px">青山村 · 数据存储于村内电脑</div>
             </div>
             <div class="p-scroll">
@@ -385,19 +249,19 @@
                 <div style="height:12px"></div>
                 <button class="a-btn red">登录</button>
               </div>
-              <p class="a-note" style="padding:0 4px">仅供村干部使用，所有操作将被记录到操作日志。</p>
+              <p class="a-note" style="padding:0 4px">仅供村务工作人员使用，所有操作将被记录到操作日志。</p>
             </div>
           </div>
         </div>
-        <p class="cap"><b>S4 管理登录</b><span class="who who-m">村干部</span>
-          <span class="pts">单一管理密码，无账号体系；登录会话保持 7 天；明确提示操作留痕。</span></p>
+        <p class="cap"><b>M1 登录</b><span class="who who-m">工作人员</span>
+          <span class="pts">唯一入口（手机/电脑同一地址）；单一管理密码，无账号体系；登录会话保持 7 天；操作全程留痕。</span></p>
       </div>
 
       <div class="scene">
         <div class="phone">
           <div class="p-status"><span>9:41</span><span class="icons"><i class="sig"></i><i class="sig"></i><i class="wifi"></i><i class="batt"></i></span></div>
           <div class="p-body">
-            <div class="a-head">管理首页<span class="sub">青山村 · 全部入口</span></div>
+            <div class="a-head">管理首页<span class="sub">青山村 · 全部模块</span></div>
             <div class="p-scroll">
               <div class="a-grid">
                 <div class="a-tile"><div class="ic ic-blue">居</div><div class="n">居民信息</div><div class="c">1,286 人</div></div>
@@ -413,17 +277,17 @@
                 <div class="a-tile"><div class="ic ic-blue">养</div><div class="n">养老保险</div><div class="c">812 人</div></div>
                 <div class="a-tile"><div class="ic ic-ink">报</div><div class="n">户情报告</div><div class="c">按户生成</div></div>
                 <div class="a-tile"><div class="ic ic-ink">项</div><div class="n">乡村项目</div><div class="c">12 个</div></div>
-                <div class="a-tile"><div class="ic ic-ink">导</div><div class="n">导入 Excel</div><div class="c">批量录入</div></div>
+                <div class="a-tile"><div class="ic ic-ink">导</div><div class="n">导入 Excel</div><div class="c">电脑端</div></div>
                 <div class="a-tile"><div class="ic ic-ink">志</div><div class="n">操作日志</div><div class="c">审计留痕</div></div>
                 <div class="a-tile"><div class="ic ic-ink">备</div><div class="n">数据备份</div><div class="c">自动+手动</div></div>
                 <div class="a-tile"><div class="ic ic-ink">设</div><div class="n">系统设置</div><div class="c">密码/参数</div></div>
               </div>
-              <p class="a-note" style="padding:12px 4px 0">红色宫格=数据台账　金色宫格=功能入口<br>宫格数字随数据实时更新</p>
+              <p class="a-note" style="padding:12px 4px 0">红色宫格=数据台账　金色宫格=功能入口<br>宫格数字随数据实时更新 · 编辑与导入请到电脑端</p>
             </div>
           </div>
         </div>
-        <p class="cap"><b>S4b 管理首页 · 九宫格</b><span class="who who-m">村干部</span>
-          <span class="pts">登录后直达九宫格：11 个数据台账 + 6 个功能入口全部平铺；宫格带实时统计数；红=数据台账、金=功能入口，整体中国红党政风格。</span></p>
+        <p class="cap"><b>M2 管理首页 · 九宫格</b><span class="who who-m">工作人员</span>
+          <span class="pts">与电脑端完全一致：11 个数据台账 + 6 个功能入口；宫格带实时统计数；红=数据台账、金=功能入口。</span></p>
       </div>
 
       <div class="scene">
@@ -462,16 +326,12 @@
                 <div class="a-row"><span class="k">住址</span><span class="v">四组 21 号</span></div>
                 <div class="a-row"><span class="k">退出时间</span><span class="v">2025-06</span></div>
               </div>
-            </div>
-            <div class="a-actions">
-              <button class="a-btn line">Excel 模板</button>
-              <button class="a-btn line">导入</button>
-              <button class="a-btn red">新增</button>
+              <p class="a-note" style="padding:4px">提示：新增、编辑、导入导出请在电脑端操作。</p>
             </div>
           </div>
         </div>
-        <p class="cap"><b>S5 台账列表（低保户）</b><span class="who who-m">村干部</span>
-          <span class="pts">卡片式列表适合手机查看；顶部筛选"享受中/已退出"；底部保留模板、导入、新增入口（导入建议在电脑操作）。</span></p>
+        <p class="cap"><b>M3 台账列表（低保户）</b><span class="who who-m">工作人员</span>
+          <span class="pts">手机端只读：卡片式列表 + 搜索筛选，与电脑端数据一致；不含任何编辑/导入按钮。</span></p>
       </div>
 
       <div class="scene">
@@ -502,34 +362,30 @@
                 <div class="a-row"><span class="k">📄 低保证明.pdf</span><span class="v">1.2 MB</span></div>
                 <div class="a-row"><span class="k">🖼 身份证照片.jpg</span><span class="v">0.4 MB</span></div>
               </div>
-            </div>
-            <div class="a-actions">
-              <button class="a-btn line">户情报告</button>
-              <button class="a-btn line">编辑</button>
-              <button class="a-btn red">删除</button>
+              <p class="a-note" style="padding:4px">提示：编辑、删除、生成户情报告请在电脑端操作。</p>
             </div>
           </div>
         </div>
-        <p class="cap"><b>S6 户详情（管理端）</b><span class="who who-m">村干部</span>
-          <span class="pts">一张户详情聚合全部标签、成员与附件；底部可直接生成户情报告；删除需确认且写操作日志。</span></p>
+        <p class="cap"><b>M4 户详情</b><span class="who who-m">工作人员</span>
+          <span class="pts">手机端只读：一户聚合全部标签、成员与附件，无操作按钮；修改在电脑端进行。</span></p>
       </div>
 
     </div>
   </section>
 
-  <!-- ============ 电脑端 · 管理视角 ============ -->
+  <!-- ============ 电脑端 ============ -->
   <section class="g-sec">
-    <h2><span class="num">C</span>电脑端 · 管理视角（村里电脑浏览器）</h2>
-    <p class="sub">数据维护主战场：台账管理、Excel 批量导入、户情报告导出都在电脑上完成。</p>
+    <h2><span class="num">B</span>电脑端（数据维护）</h2>
+    <p class="sub">村里电脑是数据维护主战场：台账增删改、Excel 批量导入、户情报告导出都在电脑上完成。</p>
     <div class="frames">
 
       <div class="scene wide">
         <div class="desktop">
-          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/admin</span></div>
+          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080</span></div>
           <div class="d-app">
             <div class="d-nav">
               <div class="logo">村务管理系统</div>
-              <a class="on">工作台</a>
+              <a class="on">管理首页</a>
               <a>台账中心</a>
               <a>户情报告</a>
               <a>乡村项目</a>
@@ -541,12 +397,9 @@
             </div>
             <div class="d-main">
               <div class="d-topbar">
-                <div><span class="t1">青山村 · 管理首页</span>　<span class="t2">村干部，下午好。点击宫格进入各台账与功能。</span></div>
+                <div><span class="t1">青山村 · 管理首页</span>　<span class="t2">下午好。点击宫格进入各模块，手机端与这里数据一致。</span></div>
                 <div style="display:flex;align-items:center;gap:10px">
-                  <div style="display:flex;gap:6px;align-items:center">
-                    <div style="width:34px;height:34px;border:1px solid #e7e8e1;border-radius:6px;background:#fff"></div>
-                    <div style="width:34px;height:34px;border:1px solid #e7e8e1;border-radius:6px;background:#fff"></div>
-                  </div>
+                  <div style="width:34px;height:34px;border:1px solid #e7e8e1;border-radius:6px;background:#fff"></div>
                   <button class="d-btn">生成海报</button>
                 </div>
               </div>
@@ -573,25 +426,25 @@
                 <h4>最近操作</h4>
                 <table class="d-table">
                   <tr><th>时间</th><th>操作</th><th>对象</th><th>来源 IP</th></tr>
-                  <tr><td>今天 09:41</td><td>编辑</td><td>王建国 户</td><td>192.168.1.66</td></tr>
+                  <tr><td>今天 09:41</td><td>编辑</td><td>王建国 户</td><td>192.168.1.88</td></tr>
                   <tr><td>今天 09:12</td><td>Excel 导入</td><td>低保户台账（新增 3 户）</td><td>192.168.1.88</td></tr>
-                  <tr><td>昨天 16:30</td><td>村民查询</td><td>王建国 户</td><td>192.168.1.105</td></tr>
+                  <tr><td>昨天 16:30</td><td>数据备份</td><td>自动备份完成（30 份保留中）</td><td>本机</td></tr>
                 </table>
               </div>
             </div>
           </div>
         </div>
-        <p class="cap"><b>S7 电脑管理首页 · 九宫格</b><span class="who who-d">村干部 · 电脑</span>
-          <span class="pts">登录后同样直达九宫格（电脑 6 列 / 手机 3 列，同一套入口）；宫格带实时统计；下方为最近操作审计流；右上角双二维码与"生成海报"。</span></p>
+        <p class="cap"><b>D1 管理首页 · 九宫格</b><span class="who who-d">工作人员 · 电脑</span>
+          <span class="pts">主要功能按独立模块进入：11 个数据台账 + 6 个功能入口；宫格带实时统计；下方最近操作审计流；右上角访问二维码与"生成海报"。</span></p>
       </div>
 
       <div class="scene wide">
         <div class="desktop">
-          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/admin/ledger/dibao</span></div>
+          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/ledger/dibao</span></div>
           <div class="d-app">
             <div class="d-nav">
               <div class="logo">村务管理系统</div>
-              <a>工作台</a>
+              <a>管理首页</a>
               <a class="on">台账中心</a>
               <a>户情报告</a>
               <a>乡村项目</a>
@@ -603,7 +456,7 @@
             </div>
             <div class="d-main">
               <div class="d-topbar">
-                <div><span class="t1">低保户台账</span>　<span class="t2">共 42 户 · 数据更新于 2026-09-07 09:41</span></div>
+                <div><span class="t1">低保户台账</span>　<span class="t2">共 42 户 · 数据更新于 2026-09-09 09:41</span></div>
                 <button class="d-btn primary">新增户</button>
               </div>
               <div class="d-toolbar">
@@ -627,17 +480,17 @@
             </div>
           </div>
         </div>
-        <p class="cap"><b>S8 台账管理（低保户）</b><span class="who who-d">村干部 · 电脑</span>
-          <span class="pts">表格视图与 Excel 台账同构，村干部无学习成本；工具栏：模板下载 / 导入 / 导出 / 新增；导出列与模板一致可复用。</span></p>
+        <p class="cap"><b>D2 台账管理（低保户）</b><span class="who who-d">工作人员 · 电脑</span>
+          <span class="pts">表格视图与 Excel 台账同构：增删改 + 模板下载 / 导入 / 导出 / 新增；删除需确认且写操作日志。</span></p>
       </div>
 
       <div class="scene wide">
         <div class="desktop" style="position:relative">
-          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/admin/ledger/dibao</span></div>
+          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/ledger/dibao</span></div>
           <div class="d-app" style="position:relative;min-height:430px">
             <div class="d-nav">
               <div class="logo">村务管理系统</div>
-              <a>工作台</a>
+              <a>管理首页</a>
               <a class="on">台账中心</a>
               <a>户情报告</a>
               <a>乡村项目</a>
@@ -666,7 +519,7 @@
                   <div class="d-step">② 按模板填写</div>
                   <div class="d-step on">③ 上传导入</div>
                 </div>
-                <div class="d-drop">低保户台账_2026-09-07.xlsx · 128 行<br><span style="font-size:11.5px">拖拽或点击重新选择文件</span></div>
+                <div class="d-drop">低保户台账_2026-09-09.xlsx · 128 行<br><span style="font-size:11.5px">拖拽或点击重新选择文件</span></div>
                 <div class="d-check ok">✓ 校验通过：将新增 12 户 / 24 人，更新 31 条，无重复冲突</div>
                 <div class="d-check err">⚠ 第 47 行：身份证号"11010119"位数不正确，该行已跳过，不影响其他行导入</div>
                 <div class="foot">
@@ -677,17 +530,17 @@
             </div>
           </div>
         </div>
-        <p class="cap"><b>S9 Excel 批量导入</b><span class="who who-d">村干部 · 电脑</span>
+        <p class="cap"><b>D3 Excel 批量导入</b><span class="who who-d">工作人员 · 电脑</span>
           <span class="pts">三步引导（模板→填写→上传）；上传即预校验：通过行数与错误行逐行报告，有错不入库、可导出错误明细。</span></p>
       </div>
 
       <div class="scene wide">
         <div class="desktop">
-          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/admin/report/household/42</span></div>
+          <div class="d-chrome"><i></i><i></i><i></i><span class="addr">http://192.168.1.88:8080/report/household/42</span></div>
           <div class="d-app">
             <div class="d-nav">
               <div class="logo">村务管理系统</div>
-              <a>工作台</a>
+              <a>管理首页</a>
               <a>台账中心</a>
               <a class="on">户情报告</a>
               <a>乡村项目</a>
@@ -705,7 +558,7 @@
               <div class="d-report">
                 <div class="rhead">
                   <h3>青 山 村 户 情 报 告</h3>
-                  <p>报告编号：HS-2026-0042　生成时间：2026-09-07　数据截止：2026-09-07</p>
+                  <p>报告编号：HS-2026-0042　生成时间：2026-09-09　数据截止：2026-09-09</p>
                 </div>
                 <div class="rh">一、户基本信息</div>
                 <table>
@@ -734,17 +587,17 @@
                 </table>
                 <div class="rh">五、政策性收入合计（月）</div>
                 <div class="rsum">低保金 930 元 + 养老金 168 元 + 务工收入约 5,800 元 ≈ <b>6,898 元</b></div>
-                <div class="rfoot">本报告由村务管理系统自动生成 · 数据来源：村内台账 · 供村委会内部使用</div>
+                <div class="rfoot">本报告由村务管理系统自动生成 · 数据来源：村内台账 · 供村务工作人员使用</div>
               </div>
             </div>
           </div>
         </div>
-        <p class="cap"><b>S10 户情报告</b><span class="who who-d">村干部 · 电脑</span>
+        <p class="cap"><b>D4 户情报告</b><span class="who who-d">工作人员 · 电脑</span>
           <span class="pts">红头 A4 公文样式；选户即聚合，无需手填；一键导出 PDF 存档打印；生成动作记入操作日志。</span></p>
       </div>
 
     </div>
   </section>
 
-  <p style="text-align:center;color:var(--cv-ink3);font-size:12.5px">村务管理系统 UI 效果图 v0.1 · 示例数据 · 2026-09-07</p>
+  <p style="text-align:center;color:var(--cv-ink3);font-size:12.5px">村务管理系统 UI 效果图 v0.3 · 仅管理人员使用 · 示例数据 · 2026-09-09</p>
 </div>

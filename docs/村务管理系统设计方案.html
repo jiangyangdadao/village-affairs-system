@@ -211,7 +211,7 @@
     <header class="doc-head">
       <p class="eyebrow">村务数据 · 局域网 · 不上云</p>
       <h1>村务管理系统设计方案</h1>
-      <p class="doc-meta"><b>版本</b> v1.0（已确认）　<b>日期</b> 2026-09-07　<b>形态</b> 单村局域网版 · 村电脑部署 · 手机浏览器访问</p>
+      <p class="doc-meta"><b>版本</b> v1.1（已确认）　<b>日期</b> 2026-09-09　<b>形态</b> 单村局域网版 · 仅工作人员使用 · 村电脑部署 · 手机浏览器访问</p>
       <div class="stats">
         <div class="stat"><b>1</b><span>台村内电脑</span></div>
         <div class="stat"><b>1</b><span>个 exe 双击即用</span></div>
@@ -223,11 +223,11 @@
     <!-- 01 项目概述 -->
     <section class="sheet" id="s1">
       <h2><span class="secnum">01</span>项目概述</h2>
-      <p class="lede">为<b>一个村</b>建设一套轻量村务数据系统：村干部在村办公室电脑上维护台账，村民和管理人员用手机浏览器随时查看，数据全部保存在村内电脑，不上传任何云端服务器。</p>
+      <p class="lede">为<b>一个村</b>建设一套轻量村务数据系统：村务工作人员在村办公室电脑上维护台账，并用手机浏览器随时查看，数据全部保存在村内电脑，不上传任何云端服务器。</p>
       <h3>核心价值</h3>
       <ul>
         <li><b>一次录入、处处复用</b>：户、人只录一次身份证，十一类台账（含居民信息名册）自动关联，户情报告自动聚合生成，杜绝重复填报。</li>
-        <li><b>手机随时查看</b>：村民扫蓝码输身份证查本户信息；村干部扫红码管理全村数据。</li>
+        <li><b>手机随时查看</b>：工作人员手机随时查看全部台账，与电脑端数据一致、仅布局不同；增删改与导入导出在电脑端完成。</li>
         <li><b>零门槛部署维护</b>：一键安装、双击启动、复制文件夹即备份，村干部无需技术背景。</li>
       </ul>
       <h3>已确认的需求决策</h3>
@@ -238,12 +238,12 @@
           <tr><td>部署位置</td><td>村内一台 Windows 10/11 电脑，长期开机</td></tr>
           <tr><td>访问方式</td><td>仅局域网（手机连村 WiFi 用浏览器访问），不做远程访问</td></tr>
           <tr><td>云端</td><td>不上传云端服务器；运行期零外网依赖（前端资源本地打包，不用 CDN）</td></tr>
-          <tr><td>村民查看</td><td>免登录浏览公开信息；<b>输入本人身份证号</b>查看本人所在户全部信息</td></tr>
+          <tr><td>使用范围</td><td>仅村务工作人员；电脑端全功能（增删改/导入导出），手机端仅查看（数据一致、布局不同）</td></tr>
           <tr><td>管理操作</td><td>增删改 / 导入导出需输入<b>管理密码</b>（单一密码，无账号体系）</td></tr>
           <tr><td>户情报告</td><td>系统从台账自动聚合生成，可导出 PDF</td></tr>
           <tr><td>后台技术</td><td>Python FastAPI + SQLite</td></tr>
           <tr><td>部署方式</td><td>一键安装 exe + 向日葵远程协助</td></tr>
-          <tr><td>访问入口</td><td>双二维码：<span class="tag tag-blue">蓝码 · 村民入口</span> <span class="tag tag-red">红码 · 管理入口</span>，安装时自动生成海报打印贴墙</td></tr>
+          <tr><td>访问入口</td><td>管理入口二维码，安装时自动生成海报打印贴墙</td></tr>
         </tbody>
       </table></div>
       <h3>明确不做（边界）</h3>
@@ -251,6 +251,7 @@
         <li>不做微信小程序（强制要求备案域名 + HTTPS 云服务器，与"不上云"冲突）</li>
         <li>不做多村/乡镇/县级平台；不做线上办事申请、不接政务接口</li>
         <li>不做流程审批、消息推送、通知中心；不使用 WPS 等第三方在线表格</li>
+        <li>不做村民端（免登录浏览、身份证查询本户信息）</li>
         <li>不做 MySQL / Docker / 集群等重部署形态</li>
       </ul>
     </section>
@@ -272,8 +273,8 @@ flowchart LR
         WEB --- STATIC
         WEB --- DB
     end
-    VILLAGER[村民手机 连村WiFi&lt;br/&gt;扫蓝码 输身份证查本户] -- http://192.168.1.88:8080 --&gt; ROUTER
-    CADRE[村干部手机或电脑&lt;br/&gt;管理密码登录&lt;br/&gt;台账维护 导入导出] -- http://192.168.1.88:8080 --&gt; ROUTER
+    MOBILE[工作人员手机 连村WiFi&lt;br/&gt;管理密码登录 仅查看] -- http://192.168.1.88:8080 --&gt; ROUTER
+    CADRE[村办公室电脑浏览器&lt;br/&gt;管理密码登录&lt;br/&gt;台账维护 导入导出] -- http://192.168.1.88:8080 --&gt; ROUTER
     ROUTER --&gt; PC
     DEV[开发者 远程协助&lt;br/&gt;向日葵/ToDesk] -.屏幕画面.-&gt; PC
       </pre>
@@ -295,50 +296,27 @@ flowchart LR
     <!-- 03 访问与权限 -->
     <section class="sheet" id="s3">
       <h2><span class="secnum">03</span>访问与权限</h2>
-      <p class="lede">双入口、三级可见性：任何人看公开页，村民凭身份证看本户，管理员凭密码看全村。</p>
+      <p class="lede">系统仅面向村务工作人员：无村民端、无公开浏览、无身份证查询；所有数据在管理密码登录后可见。</p>
       <p class="qr-note">海报二维码样式示意（安装时自动生成，非真实二维码）：</p>
-      <div class="qr-row">
+      <div class="qr-row" style="grid-template-columns:1fr">
         <div class="qr-card">
-          <canvas data-qr="20260907" width="112" height="112" aria-hidden="true"></canvas>
+          <canvas data-qr="20260909" width="112" height="112" aria-hidden="true"></canvas>
           <div>
-            <h4 class="code-blue">蓝码 · 村民入口</h4>
-            <p>手机连村 WiFi 扫码<br>看村情简介、查本户信息<br><b class="code-blue">访问路径 /</b></p>
-          </div>
-        </div>
-        <div class="qr-card">
-          <canvas data-qr="202609071" width="112" height="112" aria-hidden="true"></canvas>
-          <div>
-            <h4 class="code-red">红码 · 管理入口</h4>
-            <p>输入管理密码后<br>管理全村台账、导入导出<br><b class="code-red">访问路径 /admin</b></p>
+            <h4 class="code-red">管理入口</h4>
+            <p>手机或电脑输入管理密码后<br>查看与维护全村台账数据<br><b class="code-red">http://村电脑IP:8080</b></p>
           </div>
         </div>
       </div>
-      <h3>权限矩阵</h3>
+      <h3>使用范围</h3>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>能力</th><th>免登录（任何人）</th><th>村民（输本人身份证）</th><th>管理员（输管理密码）</th></tr></thead>
+        <thead><tr><th style="min-width:110px">端</th><th>能力</th></tr></thead>
         <tbody>
-          <tr><td>村情简介</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-          <tr><td>公开的项目资料</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-          <tr><td>查看本人所在户全部信息</td><td class="no">—</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-          <tr><td>查看其他户 / 其他人数据</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
-          <tr><td>台账新增 / 编辑 / 删除</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
-          <tr><td>Excel 导入 / 导出</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
-          <tr><td>附件上传 / 删除</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
-          <tr><td>户情报告生成 / 导出 PDF</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
-          <tr><td>操作日志 / 查询日志查看</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
-          <tr><td>系统设置 / 备份 / 恢复</td><td class="no">—</td><td class="no">—</td><td class="ok">✓</td></tr>
+          <tr><td><b>电脑端</b></td><td>全功能：查看、新增、编辑、删除、Excel 导入导出、附件、户情报告、日志、备份</td></tr>
+          <tr><td><b>手机端</b></td><td>仅查看：与电脑端同一套数据、同一套九宫格入口，仅布局自适应手机；无任何编辑/导入入口</td></tr>
         </tbody>
       </table></div>
-      <h3>村民身份证查询规则</h3>
-      <ol>
-        <li>村民在蓝码首页点"我的家庭"，输入本人身份证号（无需注册、无需密码）。</li>
-        <li>系统按身份证反查人员表 → 定位其所在户 → 展示该户完整信息（成员构成、政策享受、医保养老缴费、务工等）。</li>
-        <li>身份证不在台账中：提示"未查询到您的信息，请联系村干部登记"。</li>
-        <li>每次查询记录一条查询日志（时间、来源 IP、查询到的户、结果），村干部可在管理端审计。</li>
-        <li>隐私权衡说明：知道他人身份证号即可查看该户信息，这是"输身份证直查"方案的固有特性，已由需求方确认接受。系统不展示所查户以外的任何他人数据。</li>
-      </ol>
       <h3>管理密码</h3>
-      <p>单一管理员密码（PBKDF2 哈希存储），登录后浏览器会话保持（Cookie，7 天或关闭即失效）；所有写操作在管理会话内进行并写入操作日志；密码可随时在系统管理中修改。</p>
+      <p>单一管理员密码（PBKDF2 哈希存储），登录后浏览器会话保持（Cookie，7 天或关闭即失效）；手机与电脑共用同一地址和密码；所有写操作在管理会话内进行并写入操作日志；密码可随时在系统管理中修改。</p>
     </section>
 
     <!-- 04 数据库设计 -->
@@ -457,7 +435,7 @@ erDiagram
         <thead><tr><th>字段</th><th>说明</th></tr></thead>
         <tbody>
           <tr><td class="num">op_time</td><td>操作时间</td></tr>
-          <tr><td class="num">op_type</td><td>新增 / 编辑 / 删除 / 导入 / 导出 / 上传附件 / 删除附件 / 修改密码 / 备份 / 村民查询</td></tr>
+          <tr><td class="num">op_type</td><td>新增 / 编辑 / 删除 / 导入 / 导出 / 上传附件 / 删除附件 / 修改密码 / 备份</td></tr>
           <tr><td class="num">module</td><td>所属台账模块</td></tr>
           <tr><td class="num">biz_type / biz_id</td><td>操作对象类型与 id</td></tr>
           <tr><td class="num">before_json / after_json</td><td>变更前后完整数据（删除操作凭 before_json 可恢复）</td></tr>
@@ -469,17 +447,17 @@ erDiagram
     <!-- 05 功能模块 -->
     <section class="sheet" id="s5">
       <h2><span class="secnum">05</span>功能模块</h2>
-      <p class="lede">6 大模块，全部在一个网页内。台账共用一套通用引擎，交互刻意保持朴素：手机端以查看为主，录入编辑在电脑上进行。<b>管理首页为九宫格</b>：11 个数据台账入口（宫格带实时统计数）+ 6 个功能入口（户情报告、乡村项目、导入 Excel、操作日志、数据备份、系统设置），手机 3 列、电脑 6 列，红=户级台账、蓝=人员台账、灰=功能入口。</p>
+      <p class="lede">6 大模块，全部在一个网页内。台账共用一套通用引擎，交互刻意保持朴素：手机端仅查看，录入编辑在电脑上进行。<b>管理首页为九宫格</b>：11 个数据台账入口（宫格带实时统计数）+ 6 个功能入口（户情报告、乡村项目、导入 Excel、操作日志、数据备份、系统设置），手机 3 列、电脑 6 列，红=数据台账、金=功能入口。</p>
       <div class="tbl-wrap"><table>
         <thead><tr><th style="min-width:130px">模块</th><th>说明</th></tr></thead>
         <tbody>
           <tr>
-            <td><b>1. 首页</b><br><span class="tag tag-blue">村民入口</span></td>
-            <td>村情简介（富文本+图片）、公开的项目资料、"我的家庭"身份证查询入口、访问二维码展示（自动读取本机 IP 生成）。</td>
+            <td><b>1. 管理首页</b><br><span class="tag tag-red">手机/电脑一致</span></td>
+            <td>九宫格模块入口（11 台账 + 6 功能，宫格带实时统计）、村情简介卡片、最近操作、访问二维码展示（自动读取本机 IP 生成，供重打海报）。</td>
           </tr>
           <tr>
             <td><b>2. 台账中心</b><br><span class="tag tag-red">管理入口</span></td>
-            <td>11 类台账（居民信息名册 + 十类标签台账），每类：列表（搜索/筛选/排序/分页）、详情、新增/编辑/删除、<b>Excel 模板下载 / 批量导入 / 导出</b>、附件上传（PDF、图片，每文件 20MB 内，图片自动压缩缩略图）。</td>
+            <td>11 类台账（居民信息名册 + 十类标签台账），每类：列表（搜索/筛选/排序/分页）、详情、新增/编辑/删除、<b>Excel 模板下载 / 批量导入 / 导出</b>、附件上传（PDF、图片，每文件 20MB 内，图片自动压缩缩略图）。<b>电脑端全功能，手机端仅查看。</b></td>
           </tr>
           <tr>
             <td><b>3. 户情报告</b><br><span class="tag tag-red">管理入口</span></td>
@@ -487,15 +465,15 @@ erDiagram
           </tr>
           <tr>
             <td><b>4. 乡村项目资料</b></td>
-            <td>项目列表（名称、类别、投资金额、进度、是否公开）、详情、附件；标记"公开"的项目出现在村民免登录首页。</td>
+            <td>项目列表（名称、类别、投资金额、进度）、详情、附件；项目资料供工作人员查阅与维护。</td>
           </tr>
           <tr>
             <td><b>5. 操作日志与导入记录</b></td>
-            <td>操作日志按时间/动作/模块筛选，详情展开变更前后 JSON；村民查询日志（时间、IP、查询到的户、结果，可开关）；导入记录含逐行错误明细。</td>
+            <td>操作日志按时间/动作/模块筛选，详情展开变更前后 JSON；导入记录含逐行错误明细。</td>
           </tr>
           <tr>
             <td><b>6. 系统管理</b></td>
-            <td>修改管理密码、立即备份/从备份恢复、系统设置（村名、查询日志开关、附件大小限制）、统计看板（各类户数人数、党员数、退役军人数、医保养老参保人数）。</td>
+            <td>修改管理密码、立即备份/从备份恢复、系统设置（村名、附件大小限制）、统计看板（各类户数人数、党员数、退役军人数、医保养老参保人数）。</td>
           </tr>
         </tbody>
       </table></div>
@@ -504,7 +482,7 @@ erDiagram
     <!-- 06 业务流程 -->
     <section class="sheet" id="s6">
       <h2><span class="secnum">06</span>业务流程</h2>
-      <p class="lede">五个核心流程：数据维护、村民查询、户情报告、备份恢复、部署。</p>
+      <p class="lede">四个核心流程：数据维护、户情报告、备份恢复、部署。</p>
       <h3>6.1 数据维护主流程</h3>
       <pre class="mermaid">
 flowchart TD
@@ -515,21 +493,9 @@ flowchart TD
     E --&gt; C
     D -- 通过 --&gt; F[按身份证自动匹配&lt;br/&gt;已存在→更新 / 不存在→新增]
     F --&gt; G[结果摘要 新增N户N人&lt;br/&gt;更新N条 + 写操作日志]
-    G --&gt; H[村民手机扫码/输身份证&lt;br/&gt;立即可见最新数据]
+    G --&gt; H[工作人员手机查看&lt;br/&gt;立即可见最新数据]
       </pre>
-      <h3>6.2 村民查询流程</h3>
-      <pre class="mermaid">
-flowchart TD
-    A[村民连村WiFi 扫蓝码] --&gt; B[首页 村情简介/公开项目]
-    B --&gt; C[点 我的家庭]
-    C --&gt; D[输入本人身份证号]
-    D --&gt; E{台账中是否存在}
-    E -- 存在 --&gt; F[展示本户完整信息]
-    E -- 不存在 --&gt; G[提示联系村干部登记]
-    F --&gt; H[记录查询日志]
-    G --&gt; H
-      </pre>
-      <h3>6.3 户情报告流程</h3>
+      <h3>6.2 户情报告流程</h3>
       <pre class="mermaid">
 flowchart LR
     A[管理入口 → 选一户] --&gt; B[自动聚合该户全部数据]
@@ -537,19 +503,19 @@ flowchart LR
     C --&gt; D[导出 PDF 存档/打印]
     D --&gt; E[记录操作日志]
       </pre>
-      <h3>6.4 备份与恢复流程</h3>
+      <h3>6.3 备份与恢复流程</h3>
       <pre class="mermaid">
 flowchart LR
     A[每日自动备份&lt;br/&gt;data/ → backup/日期/] --&gt; B[保留最近30份&lt;br/&gt;自动清理更早的]
     C[手动双击 备份.bat] --&gt; A
     D[换电脑或数据故障] --&gt; E[新电脑一键安装后&lt;br/&gt;复制最新备份进 data/ → 即恢复]
       </pre>
-      <h3>6.5 部署流程</h3>
+      <h3>6.4 部署流程</h3>
       <pre class="mermaid">
 flowchart TD
     A[村干部收微信安装包] --&gt; B[双击 一键安装.exe]
     B --&gt; C[自动解压+快捷方式+开机自启+防火墙+检测IP]
-    C --&gt; D[自动生成使用海报PDF&lt;br/&gt;蓝码+红码+说明 并打开]
+    C --&gt; D[自动生成使用海报PDF&lt;br/&gt;管理入口二维码+说明 并打开]
     D --&gt; E[打印海报贴墙]
     E --&gt; F[手机连村WiFi扫码验证]
     F --&gt; G{IP会变吗}
@@ -620,7 +586,7 @@ flowchart TD
   3. 设置开机自启（启动文件夹）
   4. 防火墙放行 8080 端口
   5. 检测本机 IP，生成《使用海报.pdf》并自动打开：
-     村名 + 蓝码（村民入口）+ 红码（管理入口）+ 三句话使用说明
+     村名 + 管理入口二维码 + 三句话使用说明
   6. 完成。村干部打印海报贴墙即部署结束</pre>
       <h3>远程部署协助（开发者视角）</h3>
       <ol>
@@ -654,7 +620,7 @@ flowchart TD
       <ol>
         <li><b>数据不出村</b>：全部数据存于村电脑本地，运行期零外网请求。</li>
         <li><b>管理密码</b>：PBKDF2 哈希存储；建议 8 位以上含字母数字；登录会话 Cookie。</li>
-        <li><b>操作审计</b>：所有写操作与村民查询记录日志（含变更前后 JSON、来源 IP），日志不提供删除功能。</li>
+        <li><b>操作审计</b>：所有写操作记录日志（含变更前后 JSON、来源 IP），日志不提供删除功能。</li>
         <li><b>局域网 HTTP 明文说明</b>：无 HTTPS（局域网无法备案证书），数据在村 WiFi 内明文传输；建议村 WiFi 使用 WPA2 密码且定期更换，管理密码不与 WiFi 密码相同。</li>
         <li><b>身份证数据</b>：仅存村电脑，本版不做字段级加密（依赖 Windows 账户与实体安全）；如后期有等保要求可再加。</li>
         <li><b>删除保护</b>：删除前数据完整写入日志可手工恢复；每日自动备份兜底。</li>
@@ -667,7 +633,8 @@ flowchart TD
       <div class="tbl-wrap"><table>
         <thead><tr><th>方向</th><th>说明</th></tr></thead>
         <tbody>
-          <tr><td>远程访问</td><td>加 Tailscale/蒲公英组网，村干部离村也能访问；架构不变</td></tr>
+          <tr><td>远程访问</td><td>加 Tailscale/蒲公英组网，工作人员离村也能访问；架构不变</td></tr>
+          <tr><td>村民端</td><td>如后续需要村民查询本户信息，可在现有权限模型上加身份证查询入口，数据模型不变</td></tr>
           <tr><td>多村版本</td><td>数据模型加 village 维度表 + 登录账号体系即可扩展</td></tr>
           <tr><td>上云/小程序</td><td>如未来政策要求上微信小程序，需迁至云服务器 + 备案域名 + HTTPS；数据库与业务逻辑可直接复用</td></tr>
           <tr><td>数据分析</td><td>基于台账做防返贫分析、收入结构统计等</td></tr>
@@ -681,13 +648,13 @@ flowchart TD
       <ol>
         <li>通用台账引擎先行：字段配置 → 表单/列表/详情自动渲染 → CRUD → 附件 → 日志，跑通低保户一个台账作为样板。</li>
         <li>Excel 导入导出是质量关键：模板生成、预校验、错误报告、身份证归并需重点测试。</li>
-        <li>村民身份证查询与权限隔离必须用测试覆盖（只能看本户，绝不能越权看到他人）。</li>
+        <li>手机端只读与电脑端全功能的权限边界必须用测试覆盖（手机端不得出现任何写操作入口）。</li>
         <li>一键安装脚本在纯净 Windows 虚拟机中反复演练（无 Python 环境、不同 IP 段、中文路径）。</li>
         <li>备份恢复演练：模拟数据目录损坏后从备份恢复全流程。</li>
       </ol>
     </section>
 
-    <p class="foot">村务管理系统 · 设计方案 v1.0<span class="dot">·</span>2026-09-07<span class="dot">·</span>状态：已确认设计</p>
+    <p class="foot">村务管理系统 · 设计方案 v1.1<span class="dot">·</span>2026-09-09<span class="dot">·</span>状态：已确认设计 · 仅工作人员使用</p>
   </main>
 </div>
 
