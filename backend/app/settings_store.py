@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
 
 from app import db
+from app.models import Setting
 
 
 def _row(db_session: Session, key: str):
-    return db_session.query(db.Setting).filter_by(key=key).first()
+    return db_session.query(Setting).filter_by(key=key).first()
 
 
 def get(key: str, default=None):
@@ -19,7 +20,7 @@ def set(key: str, value: str):
         if row:
             row.value = value
         else:
-            s.add(db.Setting(key=key, value=value))
+            s.add(Setting(key=key, value=value))
         s.commit()
 
 
