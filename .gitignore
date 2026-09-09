@@ -1,0 +1,26 @@
+# 运行时数据（SQLite、附件、备份、授权状态）—— 永不入库
+data/
+backup/
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+.venv/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+backend/web/assets/.*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 打包产物
+dist/
+build/
+*.spec.bak
+
+# 子代理工作区（进度台账除外）
+.superpowers/sdd/
