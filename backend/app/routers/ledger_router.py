@@ -1,60 +1,18 @@
-import re
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 
 from app import audit, db, ledger_config, models
+from app.services import records
 
 router = APIRouter()
 
-IDCARD_RE = re.compile(r"^\d{17}[\dXx]$")
-
-BASE_HOUSEHOLD_FIELDS = ["hz_name", "hz_idcard", "phone", "address", "member_count", "remark"]
-BASE_PERSON_FIELDS = ["name", "idcard", "gender", "birth", "relation", "education", "health", "skill", "remark"]
 TAG_FIELDS = ["status", "start_date", "end_date", "period", "remark"]
 
 
 def _ip(request: Request) -> str:
     return request.client.host if request.client else ""
-
-
-def _check_idcard(value: str):
-    if value and not IDCARD_RE.match(value.strip()):
-        raise HTTPException(400, f"身份证格式不正确: {value}")
-
-
-def _find_or_create_household(s, data: dict):
-    idcard = (data.get("hz_idcard") or "").strip()
-    _check_idcard(idcard)
-    if not idcard:
-        raise HTTPException(400, "户主身份证为必填")
-    h = s.query(models.Household).filter_by(hz_idcard=idcard).first()
-    if not h:
-        h = models.Household(hz_name=data.get("hz_name") or "", hz_idcard=idcard)
-        s.add(h)
-        s.flush()
-    for k in BASE_HOUSEHOLD_FIELDS:
-        if k in data and data[k] != "":
-            setattr(h, k, data[k])
-    return h
-
-
-def _find_or_create_person(s, data: dict):
-    idcard = (data.get("idcard") or "").strip()
-    _check_idcard(idcard)
-    if not idcard:
-        raise HTTPException(400, "身份证为必填")
-    p = s.query(models.Person).filter_by(idcard=idcard).first()
-    if not p:
-        p = models.Person(name=data.get("name") or "", idcard=idcard,
-                          household_id=data.get("household_id") or 0)
-        s.add(p)
-        s.flush()
-    for k in BASE_PERSON_FIELDS:
-        if k in data and data[k] != "":
-            setattr(p, k, data[k])
-    return p
 
 
 def _parse_date(v):
@@ -174,13 +132,13 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
             raise HTTPException(400, f"{f.label}为必填")
     extra = _split_extra(defn, data)
     if defn.tag_type is None:
-        p = _find_or_create_person(s, data)
+        p = records.find_or_create_person(s, data)
         s.flush()
         audit.write(s, "新增", defn.key, "person", p.id, None, models.to_json(p), _ip(request))
         s.commit()
         return {"id": p.id}
     if defn.scope == "household":
-        h = _find_or_create_household(s, data)
+        h = records.find_or_create_household(s, data)
         tag = s.query(models.HouseholdTag).filter_by(
             household_id=h.id, tag_type=defn.tag_type).first()
         if tag:
@@ -197,7 +155,7 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
                                   end_date=_parse_date(data.get("end_date")),
                                   extra=extra, remark=data.get("remark") or "")
     else:
-        p = _find_or_create_person(s, data)
+        p = records.find_or_create_person(s, data)
         period = str(data.get("period") or "")
         if defn.tag_type != "employment":  # 务工台账允许多条记录，不做去重
             tag = s.query(models.PersonTag).filter_by(
@@ -234,12 +192,12 @@ def update_row(key: str, rid: int, data: dict, request: Request, s=Depends(db.ge
             raise HTTPException(404, "记录不存在")
         before = models.to_json(p)
         if "idcard" in data and data["idcard"] not in ("", None):
-            _check_idcard(data["idcard"])
+            records.check_idcard(data["idcard"])
             dup = s.query(models.Person).filter(models.Person.idcard == data["idcard"],
                                                 models.Person.id != rid).first()
             if dup:
                 raise HTTPException(400, "该身份证已被其他人员使用")
-        for k in BASE_PERSON_FIELDS:
+        for k in records.BASE_PERSON_FIELDS:
             if k in data:
                 setattr(p, k, data[k])
         s.flush()
