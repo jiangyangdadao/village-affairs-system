@@ -19,8 +19,8 @@ P_HEADERS = [("name", "姓名", True), ("idcard", "身份证", True), ("gender",
              ("education", "文化程度", False), ("health", "健康状况", False),
              ("skill", "劳动技能", False)]
 TAG_H = [("status", "状态", False), ("start_date", "纳入时间", False), ("end_date", "退出时间", False)]
-TAG_P = [("period", "年度", False), ("status", "状态", False),
-         ("start_date", "开始时间", False), ("end_date", "结束时间", False)]
+# 人标签模板不含 status（模型无此列）；period 由 medical/pension 的 extra 字段提供，避免年度列重复
+TAG_P = [("start_date", "开始时间", False), ("end_date", "结束时间", False)]
 
 
 def _columns(defn):
@@ -65,12 +65,20 @@ def build_template(defn) -> bytes:
         if v is not None:
             ws.cell(2, i, EXAMPLE_PREFIX + str(v))
     ws.cell(2, len(cols) + 1, EXAMPLE_PREFIX + "← 示例行，导入时自动跳过，可删除")
+    # 灰色示例行 + 身份证列文本格式（防科学计数法丢位）
+    grey = PatternFill("solid", fgColor="F0F1EC")
+    for c in range(1, len(cols) + 2):
+        ws.cell(2, c).fill = grey
+    for i, (key, label, required) in enumerate(cols, start=1):
+        if key in ("hz_idcard", "idcard"):
+            for r in range(2, 10001):
+                ws.cell(r, i).number_format = "@"
     for i, (key, label, required) in enumerate(cols, start=1):
         f = next((x for x in defn.fields if x.key == key), None)
         if f and f.options:
             dv = DataValidation(type="list", formula1='"' + ",".join(f.options) + '"')
             ws.add_data_validation(dv)
-            dv.add(ws.cell(3, i).coordinate + ":" + get_column_letter(i) + "1000")
+            dv.add(ws.cell(3, i).coordinate + ":" + get_column_letter(i) + "10000")
     _style_header(ws, len(cols))
     for i in range(1, len(cols) + 1):
         ws.column_dimensions[get_column_letter(i)].width = 16
@@ -122,6 +130,12 @@ def parse_import(defn, file_bytes):
                 if f.options and data.get(f.key) and data[f.key] not in f.options:
                     errors.append({"row": r, "msg": f"{f.label} 取值“{data[f.key]}”不在可选范围"})
                     break
+                if f.kind == "date" and data.get(f.key):
+                    try:
+                        date.fromisoformat(str(data[f.key])[:10])
+                    except ValueError:
+                        errors.append({"row": r, "msg": f"{f.label} 日期格式不正确"})
+                        break
             else:
                 if idcard in seen:
                     errors.append({"row": r, "msg": f"身份证 {idcard} 在文件内重复"})
@@ -129,6 +143,14 @@ def parse_import(defn, file_bytes):
                 seen.add(idcard)
                 rows.append(data)
     return rows, errors
+
+
+def _merge_tag(tag, data: dict, extra: dict):
+    """标签字段合并（hasattr 守卫，户/人标签列集不同）。"""
+    for k in ("status", "start_date", "end_date", "period", "remark"):
+        if k in data and hasattr(tag, k) and data[k] not in ("", None):
+            setattr(tag, k, _d(data[k]) if k.endswith("date") else data[k])
+    tag.extra = {**(tag.extra or {}), **extra}
 
 
 def _apply_row(s, defn, data):
@@ -154,6 +176,11 @@ def _apply_row(s, defn, data):
         return "added"
     if defn.scope == "household":
         h = find_or_create_household(s, data)
+        tag = s.query(models.HouseholdTag).filter_by(
+            household_id=h.id, tag_type=defn.tag_type).first()
+        if tag:
+            _merge_tag(tag, data, extra)
+            return "updated"
         tag = models.HouseholdTag(household_id=h.id, tag_type=defn.tag_type,
                                   status=data.get("status") or "享受中",
                                   start_date=_d(data.get("start_date")),
@@ -161,8 +188,15 @@ def _apply_row(s, defn, data):
                                   remark=data.get("remark") or "")
     else:
         p = find_or_create_person(s, data)
+        period = data.get("period") or ""
+        if defn.tag_type != "employment":  # 务工台账允许多条，不去重
+            tag = s.query(models.PersonTag).filter_by(
+                person_id=p.id, tag_type=defn.tag_type, period=period).first()
+            if tag:
+                _merge_tag(tag, data, extra)
+                return "updated"
         tag = models.PersonTag(person_id=p.id, tag_type=defn.tag_type,
-                               period=data.get("period") or "",
+                               period=period,
                                start_date=_d(data.get("start_date")),
                                end_date=_d(data.get("end_date")), extra=extra,
                                remark=data.get("remark") or "")
@@ -236,9 +270,13 @@ def export_all() -> bytes:
                            "end_date": _fmt(obj.end_date), **{k: obj.extra.get(k, "") if obj.extra else "" for k in [f.key for f in defn.fields]}}
                 else:
                     p = s.get(models.Person, obj.person_id)
-                    row = {"name": p.name if p else "", "idcard": p.idcard if p else "",
-                           "period": obj.period, "start_date": _fmt(obj.start_date),
-                           "end_date": _fmt(obj.end_date), **{k: obj.extra.get(k, "") if obj.extra else "" for k in [f.key for f in defn.fields]}}
+                    row = {"period": obj.period, "start_date": _fmt(obj.start_date),
+                           "end_date": _fmt(obj.end_date),
+                           **{k: obj.extra.get(k, "") if obj.extra else "" for k in [f.key for f in defn.fields]}}
+                    if p:
+                        row.update({k: getattr(p, k, "") for k in
+                                    ("name", "idcard", "gender", "birth", "relation",
+                                     "education", "health", "skill")})
                 for i, (key, label, required) in enumerate(cols, start=1):
                     ws.cell(r, i, row.get(key, ""))
                 r += 1

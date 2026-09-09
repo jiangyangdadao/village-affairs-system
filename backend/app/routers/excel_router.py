@@ -70,8 +70,18 @@ def _all_rows(s, defn, q="", status=""):
         return rows
     model = models.HouseholdTag if defn.scope == "household" else models.PersonTag
     qs = s.query(model).filter(model.tag_type == defn.tag_type)
-    if defn.scope == "household" and status:
-        qs = qs.filter(model.status == status)
+    if defn.scope == "household":
+        if status:
+            qs = qs.filter(model.status == status)
+        if q:
+            qs = qs.join(models.Household,
+                         models.Household.id == models.HouseholdTag.household_id).filter(
+                models.Household.hz_name.contains(q) | models.Household.hz_idcard.contains(q))
+    else:
+        if q:
+            qs = qs.join(models.Person,
+                         models.Person.id == models.PersonTag.person_id).filter(
+                models.Person.name.contains(q) | models.Person.idcard.contains(q))
     rows = []
     for tag in qs.all():
         row = _tag_row_dict(defn, tag)
@@ -81,6 +91,9 @@ def _all_rows(s, defn, q="", status=""):
                         "phone": h.phone if h else "", "address": h.address if h else ""})
         else:
             p = s.get(models.Person, tag.person_id)
-            row.update({"name": p.name if p else "", "idcard": p.idcard if p else ""})
+            if p:
+                row.update({k: getattr(p, k, "") for k in
+                            ("name", "idcard", "gender", "birth", "relation",
+                             "education", "health", "skill")})
         rows.append(row)
     return rows
