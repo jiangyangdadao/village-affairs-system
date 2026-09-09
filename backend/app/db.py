@@ -41,3 +41,6 @@ def init_db():
     from app import settings_store
     settings_store.setdefault("village_name", "青山村")
     settings_store.setdefault("admin_password_hash", "")
+    from app import auth
+    if not settings_store.get("admin_password_hash"):
+        settings_store.set("admin_password_hash", auth.hash_password("cunwu123456"))

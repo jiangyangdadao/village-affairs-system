@@ -1,12 +1,27 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
+from app import auth as auth_lib
 from app import db
-from app.routers import ledger_router
+from app.routers import auth_router, ledger_router
+
+WHITELIST = {"/api/login", "/api/export-all", "/api/license/status", "/api/license/activate"}
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="村务管理系统")
     app.include_router(ledger_router.router, prefix="/api")
+    app.include_router(auth_router.router, prefix="/api")
+
+    @app.middleware("http")
+    async def session_gate(request, call_next):
+        path = request.url.path
+        if path.startswith("/api/") and path not in WHITELIST:
+            token = request.cookies.get("cunwu_session")
+            if not auth_lib.verify_token(token):
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        return await call_next(request)
+
     return app
 
 

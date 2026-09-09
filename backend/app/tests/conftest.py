@@ -15,7 +15,7 @@ def client_db(tmp_path, monkeypatch):
     engine = db._make_engine()
     monkeypatch.setattr(db, "engine", engine)
     monkeypatch.setattr(db, "SessionLocal", db._make_session(engine))
-    db.Base.metadata.create_all(engine)
+    db.init_db()
     yield db
     db.Base.metadata.drop_all(engine)
     engine.dispose()

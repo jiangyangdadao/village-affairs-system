@@ -5,7 +5,11 @@ from fastapi.testclient import TestClient
 @pytest.fixture()
 def client(client_db):
     from app.main import create_app
-    return TestClient(create_app())
+    c = TestClient(create_app())
+    resp = c.post("/api/login", json={"password": "cunwu123456"})
+    assert resp.status_code == 200, resp.text
+    c.cookies.update(resp.cookies)
+    return c
 
 
 def _create_dibao(client):
