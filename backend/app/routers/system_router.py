@@ -1,3 +1,5 @@
+import zipfile
+
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
 from app import audit, config, db
@@ -22,13 +24,15 @@ def list_backups():
 
 
 @router.post("/restore")
-async def do_restore(file: UploadFile, request: Request, s=Depends(db.get_db)):
+async def do_restore(file: UploadFile, request: Request):
     content = await file.read()
     try:
         backup.restore_backup(content)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    audit.write(s, "恢复", "system", note=file.filename or "",
-                ip=request.client.host if request.client else "")
-    s.commit()
+    except (ValueError, zipfile.BadZipFile) as e:
+        raise HTTPException(400, "备份包无效或缺少数据库文件")
+    # 恢复已完成引擎重建：审计必须经新连接池写入，才能落到恢复后的数据库
+    with db.SessionLocal() as s2:
+        audit.write(s2, "恢复", "system", note=file.filename or "",
+                    ip=request.client.host if request.client else "")
+        s2.commit()
     return {"ok": True, "need_restart": True}
