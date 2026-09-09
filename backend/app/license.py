@@ -89,8 +89,9 @@ def write_state(state: dict):
 
 
 def init_trial() -> dict:
+    """仅当状态缺失时创建；tampered 状态保持原样交由 check() 锁定（不覆盖、不重置试用期）。"""
     s = read_state()
-    if not s or s.get("tampered"):
+    if not s:
         now = datetime.now().isoformat()
         s = {"first_use": now, "last_seen": now, "activated": False}
         write_state(s)
@@ -99,28 +100,35 @@ def init_trial() -> dict:
 
 def check() -> dict:
     s = init_trial()
+    if s.get("tampered"):
+        return {"status": "tampered", "reason": "授权状态不一致，请联系开发者处理"}
+    try:
+        last = datetime.fromisoformat(s["last_seen"])
+        first = datetime.fromisoformat(s["first_use"])
+    except (KeyError, ValueError):
+        return {"status": "tampered", "reason": "授权状态损坏，请联系开发者处理"}
     now = datetime.now()
-    last = datetime.fromisoformat(s["last_seen"])
     if now < last:
         return {"status": "tampered", "reason": "系统时间被回拨"}
     s["last_seen"] = now.isoformat()
     write_state(s)
     if s.get("activated"):
         return {"status": "active", "days_left": None}
-    first = datetime.fromisoformat(s["first_use"])
     days_left = config.TRIAL_DAYS - (now - first).days
     return {"status": "trial" if days_left > 0 else "expired", "days_left": max(days_left, 0)}
 
 
 def make_activation_code(fingerprint: str) -> str:
+    # 指纹统一小写规范化，与签发脚本保持一致（machine_id 返回小写 hex）
+    fingerprint = (fingerprint or "").strip().lower()
     sig = hmac.new(ACTIVATION_SECRET.encode(), fingerprint.encode(), hashlib.sha256).digest()
     code = base64.b32encode(sig).decode()[:16]
     return "-".join(code[i:i + 4] for i in range(0, 16, 4))
 
 
 def activate(code: str) -> bool:
-    if not hmac.compare_digest(code.replace("-", ""),
-                                make_activation_code(machine_id()).replace("-", "")):
+    if not hmac.compare_digest((code or "").replace("-", "").upper(),
+                                make_activation_code(machine_id()).replace("-", "").upper()):
         return False
     s = read_state()
     s["activated"] = True
