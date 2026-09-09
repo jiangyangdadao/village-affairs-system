@@ -18,8 +18,8 @@
           <thead><tr><th v-for="h in tableHeaders" :key="h">{{ h }}</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="row in rows" :key="row.id" @click="$router.push(`/ledger/${key}/${row.id}`)">
-              <td v-for="h in tableHeaders" :key="h">{{ row[h] ?? '' }}</td>
-              <td><span class="op">编辑</span> <span class="op del" @click.stop="del(row)">删除</span></td>
+              <td v-for="h in tableHeaders" :key="h">{{ row[headerKeyMap[h]] ?? '' }}</td>
+              <td><span class="op" @click.stop="$router.push(`/ledger/${key}/${row.id}/edit`)">编辑</span> <span class="op del" @click.stop="del(row)">删除</span></td>
             </tr>
           </tbody>
         </table>
@@ -63,8 +63,13 @@ const tableHeaders = computed(() => {
     ? ['户主', '身份证号', '住址', '状态'] : ['姓名', '身份证号', '状态']
   return [...base, ...defn.value.fields.filter(f => ['monthly_amount','member_num','monitor_category','disability_category','disability_level','insured','receive_status','workplace'].includes(f.key)).map(f => f.label)]
 })
-const keyMap = computed(() => {
-  const m = {}
+const headerKeyMap = computed(() => {
+  const m = {
+    '户主': 'hz_name',
+    '身份证号': defn.value.scope === 'household' ? 'hz_idcard' : 'idcard',
+    '住址': 'address',
+    '状态': 'status',
+  }
   for (const f of defn.value.fields) m[f.label] = f.key
   return m
 })
@@ -91,7 +96,11 @@ async function loadDefn() {
 }
 function setStatus(v) { status.value = v; load() }
 async function del(row) {
-  if (!(await showConfirmDialog({ title: '确认删除该记录？', message: '删除后可在操作日志中追溯恢复' }))) return
+  let ok = true
+  try {
+    ok = await showConfirmDialog({ title: '确认删除该记录？', message: '删除后可在操作日志中追溯恢复' })
+  } catch (e) { ok = false }  // Vant 4 取消时 reject
+  if (!ok) return
   await api.del(`/api/ledgers/${key}/rows/${row.id}`)
   showToast('已删除')
   load()

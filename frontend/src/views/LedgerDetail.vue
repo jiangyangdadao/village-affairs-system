@@ -71,7 +71,7 @@ async function load() {
   row.value = r
   if (defn.value.scope === 'household' && defn.value.tag_type) {
     // 通过身份证反查户 id：详情接口返回的 tag 行不含 household_id，用列表接口反查
-    const list = await api.get(`/api/ledgers/${key}?page=1&page_size=100`)
+    const list = await api.get(`/api/ledgers/${key}?page=1&page_size=500`)
     const found = list.rows.find(x => x.id === id)
     if (found && found.hz_idcard) {
       const hs = await api.get(`/api/households?q=${encodeURIComponent(found.hz_idcard)}`)
@@ -84,7 +84,11 @@ async function load() {
   attachments.value = await api.get(`/api/attachments?biz_type=household&biz_id=${householdId.value || id}`)
 }
 async function del() {
-  if (!(await showConfirmDialog({ title: '确认删除该记录？' }))) return
+  let ok = true
+  try {
+    ok = await showConfirmDialog({ title: '确认删除该记录？' })
+  } catch (e) { ok = false }  // Vant 4 取消时 reject
+  if (!ok) return
   await api.del(`/api/ledgers/${key}/rows/${id}`)
   showToast('已删除')
   router.push(`/ledger/${key}`)
