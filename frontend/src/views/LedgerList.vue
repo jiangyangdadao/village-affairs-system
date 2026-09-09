@@ -66,6 +66,7 @@ const tableHeaders = computed(() => {
 const headerKeyMap = computed(() => {
   const m = {
     '户主': 'hz_name',
+    '姓名': 'name',
     '身份证号': defn.value.scope === 'household' ? 'hz_idcard' : 'idcard',
     '住址': 'address',
     '状态': 'status',
