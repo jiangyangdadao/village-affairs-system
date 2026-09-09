@@ -76,8 +76,16 @@ def _split_extra(defn, data: dict) -> dict:
 def _tag_row_dict(defn, tag) -> dict:
     row = {"id": tag.id}
     row.update(tag.extra or {})
-    row.update({k: getattr(tag, k) for k in TAG_FIELDS if getattr(tag, k, None) not in ("", None)})
+    # TAG_FIELDS 混含户/人标签两套列：缺失列一律取 None 并过滤
+    row.update({k: getattr(tag, k, None) for k in TAG_FIELDS if getattr(tag, k, None) not in ("", None)})
     return row
+
+
+def _apply_tag_fields(tag, data: dict):
+    """按 hasattr 守卫写入标签字段（户/人标签列集不同，避免产生幽灵属性）。"""
+    for k in ("status", "start_date", "end_date", "period", "remark"):
+        if k in data and hasattr(tag, k):
+            setattr(tag, k, _parse_date(data[k]) if k.endswith("date") else data[k])
 
 
 @router.get("/ledgers")
@@ -102,15 +110,22 @@ def list_rows(key: str, q: str = "", status: str = "", page: int = 1, page_size:
     defn = ledger_config.get_ledger(key)
     if defn.tag_type is None:
         base_q = s.query(models.Person)
+        if q:
+            base_q = base_q.filter(models.Person.name.contains(q) | models.Person.idcard.contains(q))
     elif defn.scope == "household":
         base_q = s.query(models.HouseholdTag).filter(models.HouseholdTag.tag_type == defn.tag_type)
+        if status:
+            base_q = base_q.filter(models.HouseholdTag.status == status)
+        if q:
+            base_q = base_q.join(models.Household,
+                                 models.Household.id == models.HouseholdTag.household_id).filter(
+                models.Household.hz_name.contains(q) | models.Household.hz_idcard.contains(q))
     else:
         base_q = s.query(models.PersonTag).filter(models.PersonTag.tag_type == defn.tag_type)
-    if defn.tag_type and status:
-        base_q = base_q.filter(models.HouseholdTag.status == status if defn.scope == "household"
-                               else True) if defn.scope == "household" else base_q
-    if q and defn.tag_type is None:
-        base_q = base_q.filter(models.Person.name.contains(q) | models.Person.idcard.contains(q))
+        if q:
+            base_q = base_q.join(models.Person,
+                                 models.Person.id == models.PersonTag.person_id).filter(
+                models.Person.name.contains(q) | models.Person.idcard.contains(q))
     total = base_q.count()
     rows = []
     for obj in base_q.order_by(models.Person.id.desc() if defn.tag_type is None else
@@ -166,6 +181,16 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
         return {"id": p.id}
     if defn.scope == "household":
         h = _find_or_create_household(s, data)
+        tag = s.query(models.HouseholdTag).filter_by(
+            household_id=h.id, tag_type=defn.tag_type).first()
+        if tag:
+            _apply_tag_fields(tag, data)
+            tag.extra = {**(tag.extra or {}), **extra}
+            s.flush()
+            audit.write(s, "编辑", defn.key, defn.scope, tag.id, None,
+                        _tag_row_dict(defn, tag), _ip(request), note="重复建档，已合并更新")
+            s.commit()
+            return {"id": tag.id, "updated": True}
         tag = models.HouseholdTag(household_id=h.id, tag_type=defn.tag_type,
                                   status=data.get("status") or "享受中",
                                   start_date=_parse_date(data.get("start_date")),
@@ -173,15 +198,28 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
                                   extra=extra, remark=data.get("remark") or "")
     else:
         p = _find_or_create_person(s, data)
+        period = str(data.get("period") or "")
+        if defn.tag_type != "employment":  # 务工台账允许多条记录，不做去重
+            tag = s.query(models.PersonTag).filter_by(
+                person_id=p.id, tag_type=defn.tag_type, period=period).first()
+            if tag:
+                _apply_tag_fields(tag, data)
+                tag.extra = {**(tag.extra or {}), **extra}
+                s.flush()
+                audit.write(s, "编辑", defn.key, defn.scope, tag.id, None,
+                            _tag_row_dict(defn, tag), _ip(request), note="重复建档，已合并更新")
+                s.commit()
+                return {"id": tag.id, "updated": True}
         tag = models.PersonTag(person_id=p.id, tag_type=defn.tag_type,
-                               period=str(data.get("period") or ""),
+                               period=period,
                                start_date=_parse_date(data.get("start_date")),
                                end_date=_parse_date(data.get("end_date")),
                                extra=extra, remark=data.get("remark") or "")
     s.add(tag)
     s.flush()
     audit.write(s, "新增", defn.key, defn.scope, tag.id, None,
-                {"extra": extra, "status": getattr(tag, "status", ""), "start_date": str(tag.start_date)},
+                {"extra": extra, "status": getattr(tag, "status", ""),
+                 "start_date": str(getattr(tag, "start_date", ""))},
                 _ip(request))
     s.commit()
     return {"id": tag.id}
@@ -195,6 +233,12 @@ def update_row(key: str, rid: int, data: dict, request: Request, s=Depends(db.ge
         if not p:
             raise HTTPException(404, "记录不存在")
         before = models.to_json(p)
+        if "idcard" in data and data["idcard"] not in ("", None):
+            _check_idcard(data["idcard"])
+            dup = s.query(models.Person).filter(models.Person.idcard == data["idcard"],
+                                                models.Person.id != rid).first()
+            if dup:
+                raise HTTPException(400, "该身份证已被其他人员使用")
         for k in BASE_PERSON_FIELDS:
             if k in data:
                 setattr(p, k, data[k])
@@ -208,9 +252,7 @@ def update_row(key: str, rid: int, data: dict, request: Request, s=Depends(db.ge
         raise HTTPException(404, "记录不存在")
     before = _tag_row_dict(defn, tag)
     extra = _split_extra(defn, data)
-    for k in ("status", "start_date", "end_date", "period", "remark"):
-        if k in data:
-            setattr(tag, k, _parse_date(data[k]) if k.endswith("date") else data[k])
+    _apply_tag_fields(tag, data)
     tag.extra = {**(tag.extra or {}), **extra}
     s.flush()
     audit.write(s, "编辑", defn.key, defn.scope, rid, before, _tag_row_dict(defn, tag), _ip(request))

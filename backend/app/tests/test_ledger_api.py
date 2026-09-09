@@ -56,3 +56,37 @@ def test_update_and_delete(client):
     resp = client.delete(f"/api/ledgers/dibao/rows/{rid}")
     assert resp.status_code == 200
     assert client.get("/api/ledgers/dibao").json()["total"] == 0
+
+
+def test_update_rejects_bad_idcard(client):
+    resp = client.post("/api/ledgers/resident/rows",
+                       json={"name": "王建国", "idcard": "110101195803041234"})
+    assert resp.status_code == 200
+    pid = resp.json()["id"]
+    resp = client.put(f"/api/ledgers/resident/rows/{pid}", json={"idcard": "123"})
+    assert resp.status_code == 400
+
+
+def test_duplicate_dibao_post_merges(client):
+    body = {"hz_name": "王建国", "hz_idcard": "110101195803041234",
+            "status": "享受中", "member_num": 3, "monthly_amount": 930}
+    r1 = client.post("/api/ledgers/dibao/rows", json=body).json()
+    r2 = client.post("/api/ledgers/dibao/rows", json={**body, "monthly_amount": 1000}).json()
+    assert r1["id"] == r2["id"] and r2.get("updated") is True
+    data = client.get("/api/ledgers/dibao").json()
+    assert data["total"] == 1
+    assert data["rows"][0]["monthly_amount"] == 1000
+
+
+def test_tag_ledger_search_filters(client):
+    client.post("/api/ledgers/dibao/rows", json={"hz_name": "王建国",
+                                                 "hz_idcard": "110101195803041234",
+                                                 "status": "享受中", "member_num": 3,
+                                                 "monthly_amount": 930})
+    client.post("/api/ledgers/dibao/rows", json={"hz_name": "张桂芳",
+                                                 "hz_idcard": "110101197103282345",
+                                                 "status": "享受中", "member_num": 1,
+                                                 "monthly_amount": 560})
+    data = client.get("/api/ledgers/dibao", params={"q": "张桂芳"}).json()
+    assert data["total"] == 1
+    assert data["rows"][0]["hz_name"] == "张桂芳"
