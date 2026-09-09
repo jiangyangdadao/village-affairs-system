@@ -56,5 +56,8 @@ def poster():
     from app import settings_store
     pdf = qr_poster.make_poster(settings_store.get("village_name", "青山村"),
                                 qr_poster.access_url())
+    # Starlette 头部按 latin-1 编码：中文文件名必须走 RFC 5987 filename*，另给 ASCII 回退
     return StreamingResponse(io.BytesIO(pdf), media_type="application/pdf",
-                             headers={"Content-Disposition": "attachment; filename=使用海报.pdf"})
+                             headers={"Content-Disposition":
+                                      "attachment; filename=poster.pdf; "
+                                      "filename*=UTF-8''%E4%BD%BF%E7%94%A8%E6%B5%B7%E6%8A%A5.pdf"})
