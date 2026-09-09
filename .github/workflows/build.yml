@@ -24,6 +24,8 @@ jobs:
       - run: pyinstaller ${{ matrix.spec }} --clean --distpath dist
       - name: 组装平铺安装包
         shell: python
+        env:
+          PYTHONUTF8: '1'
         run: |
           import shutil, os
           for f in ('deploy/windows/安装.bat', 'deploy/windows/备份.bat',
