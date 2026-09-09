@@ -133,20 +133,39 @@ from app import settings_store  # noqa: E402
 
 @pytest.fixture()
 def client_db(tmp_path, monkeypatch):
-    """每个测试使用独立临时数据库，避免污染开发数据。"""
+    """每个测试使用独立临时数据库；fixture 结束恢复全局引擎与连接池。"""
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
-    db.engine = db._make_engine()
-    db.SessionLocal = db._make_session(db.engine)
-    db.Base.metadata.create_all(db.engine)
+    engine = db._make_engine()
+    monkeypatch.setattr(db, "engine", engine)
+    monkeypatch.setattr(db, "SessionLocal", db._make_session(engine))
+    db.Base.metadata.create_all(engine)
+    db.init_db()  # Task 5 起：写入村名与默认密码哈希
     yield db
-    db.Base.metadata.drop_all(db.engine)
+    db.Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
 @pytest.fixture()
 def settings(client_db):
-    settings_store.SessionLocal = client_db.SessionLocal
     yield settings_store
+
+
+@pytest.fixture()
+def auth_client(client_db):
+    """Task 5 起所有 HTTP 测试使用：已用默认密码登录的 TestClient。"""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    c = TestClient(create_app())
+    r = c.post("/api/login", json={"password": "cunwu123456"})
+    assert r.status_code == 200, r.text
+    return c
 ```
+
+测试基础设施随任务演进的约定（与代码同步修改）：
+- Task 2 起：`client_db` 调用 `db.init_db()`（写入村名与默认密码哈希 `cunwu123456`）。
+- Task 5 起：所有打 HTTP 接口的测试夹具 = `auth_client`（登录后会话）；`test_token_sign_verify` 等触碰 settings 的测试必须接收 `client_db` 参数以使用临时库。
+- Task 6 起：`client_db` 内追加 monkeypatch `app.license._state_paths` 指向 tmp 目录，避免测试请求写真实 `data/license.json`。
 
 `backend/app/tests/test_settings.py`:
 ```python
@@ -256,15 +275,15 @@ def init_db():
     settings_store.setdefault("admin_password_hash", "")
 ```
 
-`backend/app/settings_store.py`:
+`backend/app/settings_store.py`（注意：Setting 模型定义在 `app.models`，引用为 `models.Setting`）:
 ```python
 from sqlalchemy.orm import Session
 
-from app import db
+from app import db, models
 
 
 def _row(db_session: Session, key: str):
-    return db_session.query(db.Setting).filter_by(key=key).first()
+    return db_session.query(models.Setting).filter_by(key=key).first()
 
 
 def get(key: str, default=None):
@@ -279,7 +298,7 @@ def set(key: str, value: str):
         if row:
             row.value = value
         else:
-            s.add(db.Setting(key=key, value=value))
+            s.add(models.Setting(key=key, value=value))
         s.commit()
 
 
@@ -747,8 +766,11 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def client(client_db):
+    """Task 5 之后需登录：等价于 conftest.auth_client。"""
     from app.main import create_app
-    return TestClient(create_app())
+    c = TestClient(create_app())
+    assert c.post("/api/login", json={"password": "cunwu123456"}).status_code == 200
+    return c
 
 
 def _create_dibao(client):
@@ -798,6 +820,40 @@ def test_update_and_delete(client):
     resp = client.delete(f"/api/ledgers/dibao/rows/{rid}")
     assert resp.status_code == 200
     assert client.get("/api/ledgers/dibao").json()["total"] == 0
+
+
+def test_update_rejects_bad_idcard(client):
+    resp = client.post("/api/ledgers/resident/rows",
+                       json={"name": "王建国", "idcard": "110101195803041234"})
+    assert resp.status_code == 200
+    pid = resp.json()["id"]
+    resp = client.put(f"/api/ledgers/resident/rows/{pid}", json={"idcard": "123"})
+    assert resp.status_code == 400
+
+
+def test_duplicate_dibao_post_merges(client):
+    body = {"hz_name": "王建国", "hz_idcard": "110101195803041234",
+            "status": "享受中", "member_num": 3, "monthly_amount": 930}
+    r1 = client.post("/api/ledgers/dibao/rows", json=body).json()
+    r2 = client.post("/api/ledgers/dibao/rows", json={**body, "monthly_amount": 1000}).json()
+    assert r1["id"] == r2["id"] and r2.get("updated") is True
+    data = client.get("/api/ledgers/dibao").json()
+    assert data["total"] == 1
+    assert data["rows"][0]["monthly_amount"] == 1000
+
+
+def test_tag_ledger_search_filters(client):
+    client.post("/api/ledgers/dibao/rows", json={"hz_name": "王建国",
+                                                 "hz_idcard": "110101195803041234",
+                                                 "status": "享受中", "member_num": 3,
+                                                 "monthly_amount": 930})
+    client.post("/api/ledgers/dibao/rows", json={"hz_name": "张桂芳",
+                                                 "hz_idcard": "110101197103282345",
+                                                 "status": "享受中", "member_num": 1,
+                                                 "monthly_amount": 560})
+    data = client.get("/api/ledgers/dibao", params={"q": "张桂芳"}).json()
+    assert data["total"] == 1
+    assert data["rows"][0]["hz_name"] == "张桂芳"
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -911,8 +967,16 @@ def _split_extra(defn, data: dict) -> dict:
 def _tag_row_dict(defn, tag) -> dict:
     row = {"id": tag.id}
     row.update(tag.extra or {})
-    row.update({k: getattr(tag, k) for k in TAG_FIELDS if getattr(tag, k) not in ("", None)})
+    # TAG_FIELDS 混含户/人标签两套列：缺失列一律取 None 并过滤
+    row.update({k: getattr(tag, k, None) for k in TAG_FIELDS if getattr(tag, k, None) not in ("", None)})
     return row
+
+
+def _apply_tag_fields(tag, data: dict):
+    """按 hasattr 守卫写入标签字段（户/人标签列集不同，避免产生幽灵属性）。"""
+    for k in ("status", "start_date", "end_date", "period", "remark"):
+        if k in data and hasattr(tag, k):
+            setattr(tag, k, _parse_date(data[k]) if k.endswith("date") else data[k])
 
 
 @router.get("/ledgers")
@@ -937,15 +1001,22 @@ def list_rows(key: str, q: str = "", status: str = "", page: int = 1, page_size:
     defn = ledger_config.get_ledger(key)
     if defn.tag_type is None:
         base_q = s.query(models.Person)
+        if q:
+            base_q = base_q.filter(models.Person.name.contains(q) | models.Person.idcard.contains(q))
     elif defn.scope == "household":
         base_q = s.query(models.HouseholdTag).filter(models.HouseholdTag.tag_type == defn.tag_type)
+        if status:
+            base_q = base_q.filter(models.HouseholdTag.status == status)
+        if q:
+            base_q = base_q.join(models.Household,
+                                 models.Household.id == models.HouseholdTag.household_id).filter(
+                models.Household.hz_name.contains(q) | models.Household.hz_idcard.contains(q))
     else:
         base_q = s.query(models.PersonTag).filter(models.PersonTag.tag_type == defn.tag_type)
-    if defn.tag_type and status:
-        base_q = base_q.filter(models.HouseholdTag.status == status if defn.scope == "household"
-                               else True) if defn.scope == "household" else base_q
-    if q and defn.tag_type is None:
-        base_q = base_q.filter(models.Person.name.contains(q) | models.Person.idcard.contains(q))
+        if q:
+            base_q = base_q.join(models.Person,
+                                 models.Person.id == models.PersonTag.person_id).filter(
+                models.Person.name.contains(q) | models.Person.idcard.contains(q))
     total = base_q.count()
     rows = []
     for obj in base_q.order_by(models.Person.id.desc() if defn.tag_type is None else
@@ -1001,6 +1072,16 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
         return {"id": p.id}
     if defn.scope == "household":
         h = _find_or_create_household(s, data)
+        tag = s.query(models.HouseholdTag).filter_by(
+            household_id=h.id, tag_type=defn.tag_type).first()
+        if tag:
+            _apply_tag_fields(tag, data)
+            tag.extra = {**(tag.extra or {}), **extra}
+            s.flush()
+            audit.write(s, "编辑", defn.key, defn.scope, tag.id, None,
+                        _tag_row_dict(defn, tag), _ip(request), note="重复建档，已合并更新")
+            s.commit()
+            return {"id": tag.id, "updated": True}
         tag = models.HouseholdTag(household_id=h.id, tag_type=defn.tag_type,
                                   status=data.get("status") or "享受中",
                                   start_date=_parse_date(data.get("start_date")),
@@ -1008,15 +1089,28 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
                                   extra=extra, remark=data.get("remark") or "")
     else:
         p = _find_or_create_person(s, data)
+        period = str(data.get("period") or "")
+        if defn.tag_type != "employment":  # 务工台账允许多条记录，不做去重
+            tag = s.query(models.PersonTag).filter_by(
+                person_id=p.id, tag_type=defn.tag_type, period=period).first()
+            if tag:
+                _apply_tag_fields(tag, data)
+                tag.extra = {**(tag.extra or {}), **extra}
+                s.flush()
+                audit.write(s, "编辑", defn.key, defn.scope, tag.id, None,
+                            _tag_row_dict(defn, tag), _ip(request), note="重复建档，已合并更新")
+                s.commit()
+                return {"id": tag.id, "updated": True}
         tag = models.PersonTag(person_id=p.id, tag_type=defn.tag_type,
-                               period=str(data.get("period") or ""),
+                               period=period,
                                start_date=_parse_date(data.get("start_date")),
                                end_date=_parse_date(data.get("end_date")),
                                extra=extra, remark=data.get("remark") or "")
     s.add(tag)
     s.flush()
     audit.write(s, "新增", defn.key, defn.scope, tag.id, None,
-                {"extra": extra, "status": tag.status, "start_date": str(tag.start_date)},
+                {"extra": extra, "status": getattr(tag, "status", ""),
+                 "start_date": str(getattr(tag, "start_date", ""))},
                 _ip(request))
     s.commit()
     return {"id": tag.id}
@@ -1030,6 +1124,12 @@ def update_row(key: str, rid: int, data: dict, request: Request, s=Depends(db.ge
         if not p:
             raise HTTPException(404, "记录不存在")
         before = models.to_json(p)
+        if "idcard" in data and data["idcard"] not in ("", None):
+            _check_idcard(data["idcard"])
+            dup = s.query(models.Person).filter(models.Person.idcard == data["idcard"],
+                                                models.Person.id != rid).first()
+            if dup:
+                raise HTTPException(400, "该身份证已被其他人员使用")
         for k in BASE_PERSON_FIELDS:
             if k in data:
                 setattr(p, k, data[k])
@@ -1043,9 +1143,7 @@ def update_row(key: str, rid: int, data: dict, request: Request, s=Depends(db.ge
         raise HTTPException(404, "记录不存在")
     before = _tag_row_dict(defn, tag)
     extra = _split_extra(defn, data)
-    for k in ("status", "start_date", "end_date", "period", "remark"):
-        if k in data:
-            setattr(tag, k, _parse_date(data[k]) if k.endswith("date") else data[k])
+    _apply_tag_fields(tag, data)
     tag.extra = {**(tag.extra or {}), **extra}
     s.flush()
     audit.write(s, "编辑", defn.key, defn.scope, rid, before, _tag_row_dict(defn, tag), _ip(request))
@@ -1089,6 +1187,7 @@ from app.routers import ledger_router
 
 
 def create_app() -> FastAPI:
+    db.init_db()  # 幂等：首次启动建表+写入默认设置（测试中经 monkeypatch 使用临时库）
     app = FastAPI(title="村务管理系统")
     app.include_router(ledger_router.router, prefix="/api")
     return app
@@ -1111,8 +1210,8 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_ledger_api.py -v`
-Expected: PASS（4 passed, 1 skipped）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_ledger_api.py -v`
+Expected: PASS（6 passed, 1 skipped）——其中 1 条按计划 skip 至 Task 14。
 
 - [ ] **Step 5: 提交**
 
@@ -1405,6 +1504,24 @@ def test_bad_code_rejected(state_dir, monkeypatch):
     monkeypatch.setattr(lic, "machine_id", lambda: "TESTFINGERPRINT001")
     assert not lic.activate("AAAA-BBBB-CCCC-DDDD")
     assert lic.check()["status"] == "trial"
+
+
+def test_fingerprint_case_insensitive(state_dir, monkeypatch):
+    """大小写指纹与大小写输入码均须可激活（回归：签发脚本与系统指纹大小写不一致的缺陷）。"""
+    monkeypatch.setattr(lic, "machine_id", lambda: "abcdef0123456789")
+    code_upper_input = lic.make_activation_code("ABCDEF0123456789")
+    assert code_upper_input == lic.make_activation_code("abcdef0123456789")
+    assert lic.activate(code_upper_input.lower())
+    assert lic.check()["status"] == "active"
+
+
+def test_tampered_state_locks_without_reset(state_dir):
+    s = lic.read_state()
+    s["tampered"] = True
+    lic.write_state(s)
+    st = lic.check()
+    assert st["status"] == "tampered"
+    assert lic.read_state().get("tampered") is True  # 未被静默重置为新的试用期
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -1507,8 +1624,9 @@ def write_state(state: dict):
 
 
 def init_trial() -> dict:
+    """仅当状态缺失时创建；tampered 状态保持原样交由 check() 锁定（不覆盖、不重置试用期）。"""
     s = read_state()
-    if not s or s.get("tampered"):
+    if not s:
         now = datetime.now().isoformat()
         s = {"first_use": now, "last_seen": now, "activated": False}
         write_state(s)
@@ -1517,28 +1635,35 @@ def init_trial() -> dict:
 
 def check() -> dict:
     s = init_trial()
+    if s.get("tampered"):
+        return {"status": "tampered", "reason": "授权状态不一致，请联系开发者处理"}
+    try:
+        last = datetime.fromisoformat(s["last_seen"])
+        first = datetime.fromisoformat(s["first_use"])
+    except (KeyError, ValueError):
+        return {"status": "tampered", "reason": "授权状态损坏，请联系开发者处理"}
     now = datetime.now()
-    last = datetime.fromisoformat(s["last_seen"])
     if now < last:
         return {"status": "tampered", "reason": "系统时间被回拨"}
     s["last_seen"] = now.isoformat()
     write_state(s)
     if s.get("activated"):
         return {"status": "active", "days_left": None}
-    first = datetime.fromisoformat(s["first_use"])
     days_left = config.TRIAL_DAYS - (now - first).days
     return {"status": "trial" if days_left > 0 else "expired", "days_left": max(days_left, 0)}
 
 
 def make_activation_code(fingerprint: str) -> str:
+    # 指纹统一小写规范化，与签发脚本保持一致（machine_id 返回小写 hex）
+    fingerprint = (fingerprint or "").strip().lower()
     sig = hmac.new(ACTIVATION_SECRET.encode(), fingerprint.encode(), hashlib.sha256).digest()
     code = base64.b32encode(sig).decode()[:16]
     return "-".join(code[i:i + 4] for i in range(0, 16, 4))
 
 
 def activate(code: str) -> bool:
-    if not hmac.compare_digest(code.replace("-", ""),
-                                make_activation_code(machine_id()).replace("-", "")):
+    if not hmac.compare_digest((code or "").replace("-", "").upper(),
+                                make_activation_code(machine_id()).replace("-", "").upper()):
         return False
     s = read_state()
     s["activated"] = True
@@ -1550,7 +1675,7 @@ def activate(code: str) -> bool:
 ```python
 from fastapi import APIRouter, HTTPException
 
-from app import license as lic
+from app import config, license as lic
 
 router = APIRouter()
 
@@ -1559,7 +1684,7 @@ router = APIRouter()
 def status():
     st = lic.check()
     return {"status": st["status"], "days_left": st.get("days_left"),
-            "fingerprint": lic.machine_id(), "trial_days": 30}
+            "fingerprint": lic.machine_id(), "trial_days": config.TRIAL_DAYS}
 
 
 @router.post("/license/activate")
@@ -1570,9 +1695,13 @@ def activate(data: dict):
     return {"ok": True, "status": "active"}
 ```
 
-`backend/app/main.py` 授权中间件（在会话中间件之后追加，复用 WHITELIST）:
+`backend/app/main.py` 授权中间件与路由挂载（在会话中间件之后追加，复用 WHITELIST）:
 ```python
 from app import license as lic
+from app.routers import license_router
+
+app.include_router(license_router.router, prefix="/api")
+
 
 @app.middleware("http")
 async def license_gate(request, call_next):
@@ -1584,6 +1713,25 @@ async def license_gate(request, call_next):
         return JSONResponse({"detail": st["status"], "days_left": st.get("days_left", 0)},
                             status_code=507)
     return await call_next(request)
+```
+
+`backend/app/tests/conftest.py` 的 `client_db` fixture 内追加（Task 6 起，位于 `db.init_db()` 之后）:
+```python
+    from app import license as lic
+    monkeypatch.setattr(lic, "_state_paths", lambda: [tmp_path / "license.json"])
+```
+
+`backend/app/tests/test_license.py` 追加 HTTP 层 507 门测试:
+```python
+def test_expired_gate_returns_507(auth_client, tmp_path, monkeypatch):
+    from app import license as lic
+    monkeypatch.setattr(lic, "_state_paths", lambda: [tmp_path / "license.json"])
+    lic.init_trial()
+    s = lic.read_state()
+    s["first_use"] = (datetime.now() - timedelta(days=31)).isoformat()
+    lic.write_state(s)
+    resp = auth_client.get("/api/ledgers")
+    assert resp.status_code == 507
 ```
 
 `deploy/scripts/gen_activation_code.py`:
@@ -1601,6 +1749,8 @@ ACTIVATION_SECRET = "CUNWU-2026-CHANGE-ME"
 
 
 def make_code(fingerprint: str) -> str:
+    # 与 app.license.make_activation_code 完全一致：指纹小写规范化
+    fingerprint = (fingerprint or "").strip().lower()
     sig = hmac.new(ACTIVATION_SECRET.encode(), fingerprint.encode(), hashlib.sha256).digest()
     code = base64.b32encode(sig).decode()[:16]
     return "-".join(code[i:i + 4] for i in range(0, 16, 4))
@@ -1610,18 +1760,18 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("用法: python gen_activation_code.py <机器指纹>")
         sys.exit(1)
-    print(make_code(sys.argv[1].strip().upper()))
+    print(make_code(sys.argv[1]))
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_license.py -v`
-Expected: PASS（5 passed）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_license.py -v`
+Expected: PASS（8 passed）
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add backend/app/license.py backend/app/routers/license_router.py backend/app/main.py deploy/scripts/gen_activation_code.py backend/app/tests/test_license.py
+git add backend/app/license.py backend/app/routers/license_router.py backend/app/main.py deploy/scripts/gen_activation_code.py backend/app/tests/test_license.py backend/app/tests/conftest.py
 git commit -m "feat: 30 天试用、机器绑定激活码与到期锁定（时钟回拨防护）"
 ```
 
@@ -1661,7 +1811,7 @@ def test_template_headers_and_example_row():
     defn = ledger_config.get_ledger("dibao")
     wb = load_workbook(BytesIO(excel_io.build_template(defn)))
     ws = wb.active
-    headers = [c.value for c in ws[1]]
+    headers = [str(c.value).replace(" *", "").replace("*", "").strip() for c in ws[1]]
     assert "户主姓名" in headers and "户主身份证" in headers and "月保障金" in headers
     assert str(ws.cell(2, 1).value).startswith("[示例]")
     assert ws.cell(3, 1).value is None  # 数据从第 3 行开始
@@ -1671,7 +1821,8 @@ def test_parse_and_apply_import(client_db):
     defn = ledger_config.get_ledger("dibao")
     wb = load_workbook(BytesIO(excel_io.build_template(defn)))
     ws = wb.active
-    headers = {c.value: i for i, c in enumerate(ws[1], start=1)}
+    headers = {str(c.value).replace(" *", "").replace("*", "").strip(): i
+               for i, c in enumerate(ws[1], start=1) if c.value}
     row_no = 3
     ws.cell(row_no, headers["户主姓名"]).value = "王建国"
     ws.cell(row_no, headers["户主身份证"]).value = "110101195803041234"
@@ -1687,14 +1838,18 @@ def test_parse_and_apply_import(client_db):
     s.commit()
     s.close()
     assert result["added"] == 1
-    assert s is not None or True
+    s = client_db.SessionLocal()
+    assert s.query(models.Household).count() == 1
+    assert s.query(models.HouseholdTag).filter_by(tag_type="dibao").count() == 1
+    s.close()
 
 
 def test_import_reports_bad_idcard_row():
     defn = ledger_config.get_ledger("dibao")
     wb = load_workbook(BytesIO(excel_io.build_template(defn)))
     ws = wb.active
-    headers = {c.value: i for i, c in enumerate(ws[1], start=1)}
+    headers = {str(c.value).replace(" *", "").replace("*", "").strip(): i
+               for i, c in enumerate(ws[1], start=1) if c.value}
     ws.cell(3, headers["户主姓名"]).value = "张三"
     ws.cell(3, headers["户主身份证"]).value = "123"
     buf = BytesIO()
@@ -1703,6 +1858,75 @@ def test_import_reports_bad_idcard_row():
     assert rows == []
     assert any("身份证" in e["msg"] for e in errors)
     assert errors[0]["row"] == 3
+
+
+def test_reimport_updates_not_duplicates(client_db):
+    """回归：同一文件重复导入 → 更新而非重复建档（与台账 API 的合并语义一致）。"""
+    defn = ledger_config.get_ledger("dibao")
+    wb = load_workbook(BytesIO(excel_io.build_template(defn)))
+    ws = wb.active
+    headers = {str(c.value).replace(" *", "").replace("*", "").strip(): i
+               for i, c in enumerate(ws[1], start=1) if c.value}
+    ws.cell(3, headers["户主姓名"]).value = "王建国"
+    ws.cell(3, headers["户主身份证"]).value = "110101195803041234"
+    ws.cell(3, headers["保障人数"]).value = 3
+    ws.cell(3, headers["月保障金"]).value = 930
+    buf = BytesIO()
+    wb.save(buf)
+    rows, errors = excel_io.parse_import(defn, buf.getvalue())
+    s = client_db.SessionLocal()
+    r1 = excel_io.apply_import(s, defn, rows)
+    s.commit()
+    r2 = excel_io.apply_import(s, defn, rows)
+    s.commit()
+    s.close()
+    assert r1 == {"added": 1, "updated": 0}
+    assert r2 == {"added": 0, "updated": 1}
+    s = client_db.SessionLocal()
+    assert s.query(models.HouseholdTag).filter_by(tag_type="dibao").count() == 1
+    s.close()
+
+
+def test_template_idcard_columns_text_format():
+    """回归：身份证列 number_format=@ 防止科学计数法丢位。"""
+    defn = ledger_config.get_ledger("dibao")
+    wb = load_workbook(BytesIO(excel_io.build_template(defn)))
+    ws = wb.active
+    headers = {str(c.value).replace(" *", "").replace("*", "").strip(): i
+               for i, c in enumerate(ws[1], start=1) if c.value}
+    assert ws.cell(3, headers["户主身份证"]).number_format == "@"
+
+
+def test_export_q_filters_tag_ledgers(auth_client):
+    """回归：标签台账导出按搜索条件过滤。"""
+    auth_client.post("/api/ledgers/dibao/rows", json={
+        "hz_name": "王建国", "hz_idcard": "110101195803041234",
+        "status": "享受中", "member_num": 3, "monthly_amount": 930})
+    auth_client.post("/api/ledgers/dibao/rows", json={
+        "hz_name": "张桂芳", "hz_idcard": "110101197103282345",
+        "status": "享受中", "member_num": 1, "monthly_amount": 560})
+    resp = auth_client.get("/api/ledgers/dibao/export", params={"q": "张桂芳"})
+    assert resp.status_code == 200
+    wb = load_workbook(BytesIO(resp.content))
+    ws = wb.active
+    names = [ws.cell(r, 1).value for r in range(2, ws.max_row + 1)]
+    assert names == ["张桂芳"]
+
+
+def test_person_tag_export_has_identity_columns(auth_client):
+    """回归：人标签台账导出包含全部人员身份列（性别等不再空白）。"""
+    auth_client.post("/api/ledgers/disabled/rows", json={
+        "name": "李秀兰", "idcard": "110101196008151234", "gender": "女",
+        "disability_no": "1122334455667788", "disability_category": "肢体",
+        "disability_level": "三级"})
+    resp = auth_client.get("/api/ledgers/disabled/export")
+    assert resp.status_code == 200
+    wb = load_workbook(BytesIO(resp.content))
+    ws = wb.active
+    headers = {str(c.value).replace(" *", "").replace("*", "").strip(): i
+               for i, c in enumerate(ws[1], start=1) if c.value}
+    assert ws.cell(2, headers["性别"]).value == "女"
+    assert ws.cell(2, headers["姓名"]).value == "李秀兰"
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -1772,7 +1996,7 @@ def find_or_create_person(s, data: dict) -> models.Person:
 ```python
 from app.services import records
 ```
-并将三处调用改为 `records.find_or_create_household(s, data)` / `records.find_or_create_person(s, data)`（`_parse_date`、`_split_extra`、`_tag_row_dict` 保留原地）。
+并将三处调用改为 `records.find_or_create_household(s, data)` / `records.find_or_create_person(s, data)`（`_parse_date`、`_split_extra`、`_tag_row_dict` 保留原地）；同时 `update_row` 内的 `_check_idcard(...)` 调用改为 `records.check_idcard(...)`、`BASE_PERSON_FIELDS` 改为 `records.BASE_PERSON_FIELDS`。
 
 `backend/app/services/excel_io.py`:
 ```python
@@ -1797,8 +2021,8 @@ P_HEADERS = [("name", "姓名", True), ("idcard", "身份证", True), ("gender",
              ("education", "文化程度", False), ("health", "健康状况", False),
              ("skill", "劳动技能", False)]
 TAG_H = [("status", "状态", False), ("start_date", "纳入时间", False), ("end_date", "退出时间", False)]
-TAG_P = [("period", "年度", False), ("status", "状态", False),
-         ("start_date", "开始时间", False), ("end_date", "结束时间", False)]
+# 人标签模板不含 status（模型无此列）；period 由 medical/pension 的 extra 字段提供，避免年度列重复
+TAG_P = [("start_date", "开始时间", False), ("end_date", "结束时间", False)]
 
 
 def _columns(defn):
@@ -1843,12 +2067,20 @@ def build_template(defn) -> bytes:
         if v is not None:
             ws.cell(2, i, EXAMPLE_PREFIX + str(v))
     ws.cell(2, len(cols) + 1, EXAMPLE_PREFIX + "← 示例行，导入时自动跳过，可删除")
+    # 灰色示例行 + 身份证列文本格式（防科学计数法丢位）
+    grey = PatternFill("solid", fgColor="F0F1EC")
+    for c in range(1, len(cols) + 2):
+        ws.cell(2, c).fill = grey
+    for i, (key, label, required) in enumerate(cols, start=1):
+        if key in ("hz_idcard", "idcard"):
+            for r in range(2, 10001):
+                ws.cell(r, i).number_format = "@"
     for i, (key, label, required) in enumerate(cols, start=1):
         f = next((x for x in defn.fields if x.key == key), None)
         if f and f.options:
             dv = DataValidation(type="list", formula1='"' + ",".join(f.options) + '"')
             ws.add_data_validation(dv)
-            dv.add(ws.cell(3, i).coordinate + ":" + get_column_letter(i) + "1000")
+            dv.add(ws.cell(3, i).coordinate + ":" + get_column_letter(i) + "10000")
     _style_header(ws, len(cols))
     for i in range(1, len(cols) + 1):
         ws.column_dimensions[get_column_letter(i)].width = 16
@@ -1872,25 +2104,26 @@ def parse_import(defn, file_bytes):
     ws = wb.active
     headers = {}
     for c in range(1, ws.max_column + 1):
-        v = _parse_cell(ws.cell(1, c)).replace(" *", "").replace("*", "").strip()
+        v = _parse_cell(ws.cell(1, c).value).replace(" *", "").replace("*", "").strip()
         if v:
             headers[c] = v
-    cols = {label: key for key, label, req in _columns(defn)}
+    coldefs = _columns(defn)
+    label_map = {label: key for key, label, req in coldefs}
     rows, errors, seen = [], [], set()
     for r in range(2, ws.max_row + 1):
-        first = _parse_cell(ws.cell(r, 1))
-        if not first:
-            continue
+        first = _parse_cell(ws.cell(r, 1).value)
+        if not first or first.startswith(EXAMPLE_PREFIX):
+            continue  # 空行与 [示例] 行跳过
         data = {}
         for c, label in headers.items():
-            key = cols.get(label)
+            key = label_map.get(label)
             if key:
-                data[key] = _parse_cell(ws.cell(r, c))
+                data[key] = _parse_cell(ws.cell(r, c).value)
         idcard = data.get("hz_idcard") or data.get("idcard") or ""
         if idcard and not IDCARD_RE.match(idcard):
             errors.append({"row": r, "msg": f"身份证号“{idcard}”位数不正确"})
             continue
-        for key, label, required in cols:
+        for key, label, required in coldefs:
             if required and not data.get(key):
                 errors.append({"row": r, "msg": f"必填项 {label} 缺失"})
                 break
@@ -1899,6 +2132,12 @@ def parse_import(defn, file_bytes):
                 if f.options and data.get(f.key) and data[f.key] not in f.options:
                     errors.append({"row": r, "msg": f"{f.label} 取值“{data[f.key]}”不在可选范围"})
                     break
+                if f.kind == "date" and data.get(f.key):
+                    try:
+                        date.fromisoformat(str(data[f.key])[:10])
+                    except ValueError:
+                        errors.append({"row": r, "msg": f"{f.label} 日期格式不正确"})
+                        break
             else:
                 if idcard in seen:
                     errors.append({"row": r, "msg": f"身份证 {idcard} 在文件内重复"})
@@ -1906,6 +2145,14 @@ def parse_import(defn, file_bytes):
                 seen.add(idcard)
                 rows.append(data)
     return rows, errors
+
+
+def _merge_tag(tag, data: dict, extra: dict):
+    """标签字段合并（hasattr 守卫，户/人标签列集不同）。"""
+    for k in ("status", "start_date", "end_date", "period", "remark"):
+        if k in data and hasattr(tag, k) and data[k] not in ("", None):
+            setattr(tag, k, _d(data[k]) if k.endswith("date") else data[k])
+    tag.extra = {**(tag.extra or {}), **extra}
 
 
 def _apply_row(s, defn, data):
@@ -1931,6 +2178,11 @@ def _apply_row(s, defn, data):
         return "added"
     if defn.scope == "household":
         h = find_or_create_household(s, data)
+        tag = s.query(models.HouseholdTag).filter_by(
+            household_id=h.id, tag_type=defn.tag_type).first()
+        if tag:
+            _merge_tag(tag, data, extra)
+            return "updated"
         tag = models.HouseholdTag(household_id=h.id, tag_type=defn.tag_type,
                                   status=data.get("status") or "享受中",
                                   start_date=_d(data.get("start_date")),
@@ -1938,8 +2190,15 @@ def _apply_row(s, defn, data):
                                   remark=data.get("remark") or "")
     else:
         p = find_or_create_person(s, data)
+        period = data.get("period") or ""
+        if defn.tag_type != "employment":  # 务工台账允许多条，不去重
+            tag = s.query(models.PersonTag).filter_by(
+                person_id=p.id, tag_type=defn.tag_type, period=period).first()
+            if tag:
+                _merge_tag(tag, data, extra)
+                return "updated"
         tag = models.PersonTag(person_id=p.id, tag_type=defn.tag_type,
-                               period=data.get("period") or "",
+                               period=period,
                                start_date=_d(data.get("start_date")),
                                end_date=_d(data.get("end_date")), extra=extra,
                                remark=data.get("remark") or "")
@@ -2013,9 +2272,13 @@ def export_all() -> bytes:
                            "end_date": _fmt(obj.end_date), **{k: obj.extra.get(k, "") if obj.extra else "" for k in [f.key for f in defn.fields]}}
                 else:
                     p = s.get(models.Person, obj.person_id)
-                    row = {"name": p.name if p else "", "idcard": p.idcard if p else "",
-                           "period": obj.period, "start_date": _fmt(obj.start_date),
-                           "end_date": _fmt(obj.end_date), **{k: obj.extra.get(k, "") if obj.extra else "" for k in [f.key for f in defn.fields]}}
+                    row = {"period": obj.period, "start_date": _fmt(obj.start_date),
+                           "end_date": _fmt(obj.end_date),
+                           **{k: obj.extra.get(k, "") if obj.extra else "" for k in [f.key for f in defn.fields]}}
+                    if p:
+                        row.update({k: getattr(p, k, "") for k in
+                                    ("name", "idcard", "gender", "birth", "relation",
+                                     "education", "health", "skill")})
                 for i, (key, label, required) in enumerate(cols, start=1):
                     ws.cell(r, i, row.get(key, ""))
                 r += 1
@@ -2102,8 +2365,18 @@ def _all_rows(s, defn, q="", status=""):
         return rows
     model = models.HouseholdTag if defn.scope == "household" else models.PersonTag
     qs = s.query(model).filter(model.tag_type == defn.tag_type)
-    if defn.scope == "household" and status:
-        qs = qs.filter(model.status == status)
+    if defn.scope == "household":
+        if status:
+            qs = qs.filter(model.status == status)
+        if q:
+            qs = qs.join(models.Household,
+                         models.Household.id == models.HouseholdTag.household_id).filter(
+                models.Household.hz_name.contains(q) | models.Household.hz_idcard.contains(q))
+    else:
+        if q:
+            qs = qs.join(models.Person,
+                         models.Person.id == models.PersonTag.person_id).filter(
+                models.Person.name.contains(q) | models.Person.idcard.contains(q))
     rows = []
     for tag in qs.all():
         row = _tag_row_dict(defn, tag)
@@ -2113,7 +2386,10 @@ def _all_rows(s, defn, q="", status=""):
                         "phone": h.phone if h else "", "address": h.address if h else ""})
         else:
             p = s.get(models.Person, tag.person_id)
-            row.update({"name": p.name if p else "", "idcard": p.idcard if p else ""})
+            if p:
+                row.update({k: getattr(p, k, "") for k in
+                            ("name", "idcard", "gender", "birth", "relation",
+                             "education", "health", "skill")})
         rows.append(row)
     return rows
 ```
@@ -2126,8 +2402,8 @@ def _all_rows(s, defn, q="", status=""):
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_excel_io.py app/tests/test_ledger_api.py -v`
-Expected: PASS（7 passed, 1 skipped）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_excel_io.py app/tests/test_ledger_api.py -v`
+Expected: PASS（13 passed, 1 skipped）
 
 - [ ] **Step 5: 提交**
 
@@ -2161,10 +2437,9 @@ from app import config
 
 
 @pytest.fixture()
-def client(client_db, tmp_path, monkeypatch):
-    from app.main import create_app
+def client(auth_client, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ATTACHMENT_DIR", tmp_path)
-    return TestClient(create_app())
+    return auth_client
 
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 64
@@ -2189,6 +2464,14 @@ def test_reject_non_image_or_pdf(client):
                        files={"file": ("bad.exe", io.BytesIO(b"MZ"), "application/octet-stream")},
                        data={"biz_type": "household", "biz_id": "1"})
     assert resp.status_code == 400
+
+
+def test_reject_path_traversal_biz_type(client):
+    """回归：biz_type 路径穿越（如 ../../x）必须 400，禁止写入附件目录之外。"""
+    resp = client.post("/api/attachments",
+                       files={"file": ("证明.png", io.BytesIO(PNG_BYTES), "image/png")},
+                       data={"biz_type": "../../outside", "biz_id": "1"})
+    assert resp.status_code == 400
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -2200,6 +2483,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'app.routers.attachment
 
 `backend/app/routers/attachment_router.py`:
 ```python
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
@@ -2212,6 +2496,7 @@ router = APIRouter()
 ALLOWED = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg",
            ".jpeg": "image/jpeg", ".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp"}
 MAX_SIZE = 20 * 1024 * 1024
+BIZ_TYPE_RE = re.compile(r"^[a-z_]{1,20}$")  # 防路径穿越：仅小写字母与下划线
 
 
 def _ext(filename: str) -> str:
@@ -2229,8 +2514,10 @@ def list_attachments(biz_type: str = "", biz_id: int = 0, s=Depends(db.get_db)):
 
 
 @router.post("/attachments")
-async def upload(file: UploadFile, biz_type: str = Form(...), biz_id: int = Form(...),
-                 request: Request, s=Depends(db.get_db)):
+async def upload(file: UploadFile, request: Request, s=Depends(db.get_db),
+                 biz_type: str = Form(...), biz_id: int = Form(...)):
+    if not BIZ_TYPE_RE.match(biz_type or ""):
+        raise HTTPException(400, "非法业务类型")
     ext = _ext(file.filename or "")
     if ext not in ALLOWED:
         raise HTTPException(400, "仅支持 PDF 和图片文件")
@@ -2274,8 +2561,8 @@ def delete(aid: int, request: Request, s=Depends(db.get_db)):
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_attachment.py -v`
-Expected: PASS（2 passed）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_attachment.py -v`
+Expected: PASS（3 passed）
 
 - [ ] **Step 5: 提交**
 
@@ -2296,7 +2583,7 @@ git commit -m "feat: 附件上传/下载/删除（PDF、图片，20MB 限制）"
 
 **Interfaces:**
 - Consumes: models（Task 2）
-- Produces: `GET /api/households/{hid}/report` → `{household, members, household_tags, person_tags, medical, pension, income_summary}`；`GET /api/households/{hid}/report.pdf` → PDF 流（红头 A4，宋体 `STSong-Light`）
+- Produces: `GET /api/households/{hid}/report` → `{household, members, household_tags, person_tags, income_summary}`（医保/养老数据包含在 person_tags 内，无独立 medical/pension 键）；`GET /api/households/{hid}/report.pdf` → PDF 流（红头 A4，宋体 `STSong-Light`）
 
 - [ ] **Step 1: 写失败测试**
 
@@ -2311,9 +2598,8 @@ from app import models
 
 
 @pytest.fixture()
-def client(client_db):
-    from app.main import create_app
-    return TestClient(create_app())
+def client(auth_client):
+    return auth_client
 
 
 @pytest.fixture()
@@ -2379,11 +2665,11 @@ def aggregate(s: Session, hid: int) -> dict:
             row["person_name"] = p.name
             person_rows.append(row)
     income_lines = []
-    for t in htags:
-        if t.tag_type == "dibao" and (t.extra or {}).get("monthly_amount"):
-            income_lines.append({"label": "低保金", "amount": t.extra["monthly_amount"]})
-        if t.tag_type == "tekun" and (t.extra or {}).get("monthly_amount"):
-            income_lines.append({"label": "特困供养金", "amount": t.extra["monthly_amount"]})
+    for t in htags:  # htags 为 models.to_json 的 dict 列表，用下标访问
+        if t["tag_type"] == "dibao" and (t.get("extra") or {}).get("monthly_amount"):
+            income_lines.append({"label": "低保金", "amount": t["extra"]["monthly_amount"]})
+        if t["tag_type"] == "tekun" and (t.get("extra") or {}).get("monthly_amount"):
+            income_lines.append({"label": "特困供养金", "amount": t["extra"]["monthly_amount"]})
     for r in person_rows:
         if r["tag_type"] == "pension" and (r["extra"] or {}).get("monthly_pension"):
             income_lines.append({"label": f"养老金（{r['person_name']}）",
@@ -2526,9 +2812,8 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client(client_db):
-    from app.main import create_app
-    return TestClient(create_app())
+def client(auth_client):
+    return auth_client
 
 
 def test_project_crud(client):
@@ -2549,6 +2834,25 @@ def test_village_profile_roundtrip(client):
                       json={"intro": "青山村位于……", "phone": "13800008801"}).status_code == 200
     data = client.get("/api/village-profile").json()
     assert data["intro"].startswith("青山村")
+
+
+def test_invalid_invest_amount_rejected(client):
+    resp = client.post("/api/projects", json={"name": "测试项目", "invest_amount": "abc"})
+    assert resp.status_code == 400
+
+
+def test_update_rejects_blank_name(client):
+    pid = client.post("/api/projects", json={"name": "光伏电站"}).json()["id"]
+    assert client.put(f"/api/projects/{pid}", json={"name": ""}).status_code == 400
+
+
+@pytest.mark.skip(reason="audit 查询接口在 Task 11 实现后启用")
+def test_village_profile_audit_records_before_after(client):
+    client.put("/api/village-profile", json={"intro": "旧简介", "phone": "111"})
+    client.put("/api/village-profile", json={"intro": "新简介", "phone": "222"})
+    items = client.get("/api/audit", params={"module": "village_profile"}).json()["items"]
+    assert items[0]["before_json"]
+    assert "新简介" in items[0]["after_json"]
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -2573,6 +2877,16 @@ def _ip(request):
     return request.client.host if request.client else ""
 
 
+def _int(v):
+    """金额安全转整数：非法输入返回 400 而不是 500。"""
+    if v in (None, ""):
+        return 0
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "投资金额必须为数字")
+
+
 @router.get("/projects")
 def list_projects(s=Depends(db.get_db)):
     return [models.to_json(p) for p in s.query(models.Project).order_by(models.Project.id.desc()).all()]
@@ -2584,7 +2898,7 @@ def create_project(data: dict, request: Request, s=Depends(db.get_db)):
         raise HTTPException(400, "项目名称为必填")
     p = models.Project(name=data["name"], category=data.get("category") or "",
                        content=data.get("content") or "",
-                       invest_amount=int(data.get("invest_amount") or 0),
+                       invest_amount=_int(data.get("invest_amount")),
                        fund_source=data.get("fund_source") or "",
                        start_date=_d(data.get("start_date")), end_date=_d(data.get("end_date")),
                        progress=data.get("progress") or "", remark=data.get("remark") or "")
@@ -2601,11 +2915,13 @@ def update_project(pid: int, data: dict, request: Request, s=Depends(db.get_db))
     if not p:
         raise HTTPException(404, "项目不存在")
     before = models.to_json(p)
+    if "name" in data and not data.get("name"):
+        raise HTTPException(400, "项目名称不能为空")
     for k in ("name", "category", "content", "fund_source", "progress", "remark"):
         if k in data:
             setattr(p, k, data[k])
     if "invest_amount" in data:
-        p.invest_amount = int(data["invest_amount"] or 0)
+        p.invest_amount = _int(data["invest_amount"])
     if "start_date" in data:
         p.start_date = _d(data["start_date"])
     if "end_date" in data:
@@ -2637,9 +2953,12 @@ def get_profile():
 
 @router.put("/village-profile")
 def put_profile(data: dict, request: Request, s=Depends(db.get_db)):
+    before = {"intro": settings_store.get("village_intro", ""),
+              "phone": settings_store.get("village_phone", "")}
     settings_store.set("village_intro", data.get("intro") or "")
     settings_store.set("village_phone", data.get("phone") or "")
-    audit.write(s, "编辑", "village_profile", ip=_ip(request))
+    after = {"intro": data.get("intro") or "", "phone": data.get("phone") or ""}
+    audit.write(s, "编辑", "village_profile", before=before, after=after, ip=_ip(request))
     s.commit()
     return {"ok": True}
 
@@ -2655,8 +2974,8 @@ def _d(v):
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_project.py -v`
-Expected: PASS（2 passed）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_project.py -v`
+Expected: PASS（4 passed, 1 skipped）——审计测试在 Task 11 提供 /api/audit 后启用。
 
 - [ ] **Step 5: 提交**
 
@@ -2687,9 +3006,8 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client(client_db):
-    from app.main import create_app
-    return TestClient(create_app())
+def client(auth_client):
+    return auth_client
 
 
 def test_audit_query_and_stats(client):
@@ -2761,17 +3079,17 @@ def stats(s=Depends(db.get_db)):
     return {"ledgers": ledgers, "recent": recent}
 ```
 
-同时修改 `backend/app/tests/test_ledger_api.py`：删除 `test_create_writes_operation_log` 上的 `@pytest.mark.skip(...)` 装饰行。
+同时修改 `backend/app/tests/test_ledger_api.py`：删除 `test_create_writes_operation_log` 上的 `@pytest.mark.skip(...)` 装饰行；修改 `backend/app/tests/test_project.py`：删除 `test_village_profile_audit_records_before_after` 上的 skip 装饰行。
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_audit_api.py app/tests/test_ledger_api.py -v`
-Expected: PASS（6 passed，无 skipped）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_audit_api.py app/tests/test_ledger_api.py -v`
+Expected: PASS（8 passed，无 skipped）
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add backend/app/routers/audit_router.py backend/app/main.py backend/app/tests/test_audit_api.py backend/app/tests/test_ledger_api.py
+git add backend/app/routers/audit_router.py backend/app/main.py backend/app/tests/test_audit_api.py backend/app/tests/test_ledger_api.py backend/app/tests/test_project.py
 git commit -m "feat: 操作日志/导入记录查询与统计接口"
 ```
 
@@ -2801,13 +3119,12 @@ from app import config, models
 
 
 @pytest.fixture()
-def client(client_db, tmp_path, monkeypatch):
-    from app.main import create_app
+def client(auth_client, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "backup")
     monkeypatch.setattr(config, "ATTACHMENT_DIR", tmp_path / "attachments")
     config.BACKUP_DIR.mkdir(exist_ok=True)
     config.ATTACHMENT_DIR.mkdir(exist_ok=True)
-    return TestClient(create_app())
+    return auth_client
 
 
 def test_backup_and_restore_roundtrip(client, client_db):
@@ -2876,12 +3193,27 @@ def _cleanup_keep_30():
 
 def restore_backup(zip_bytes: bytes):
     import io
+    import os
+    import shutil
+
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
         names = z.namelist()
         if "cunwu.db" not in names:
             raise ValueError("备份包缺少 cunwu.db")
         db.engine.dispose()
-        z.extractall(config.DATA_DIR)
+        # 备份包内数据库固定名为 cunwu.db：先写临时文件再原子覆盖当前数据库文件，
+        # 其余成员（附件、license.json）解压到数据库所在目录（生产环境即 DATA_DIR）
+        tmp_path = db.DB_PATH.with_name(f"{db.DB_PATH.name}.restore.tmp")
+        with z.open("cunwu.db") as src, open(tmp_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        os.replace(tmp_path, db.DB_PATH)
+        for n in names:
+            if n != "cunwu.db":
+                z.extract(n, db.DB_PATH.parent)
+        # 覆盖后丢弃旧库残留的 WAL/SHM，避免旧帧回放覆盖已恢复数据
+        for suffix in ("-wal", "-shm"):
+            stale = db.DB_PATH.with_name(db.DB_PATH.name + suffix)
+            stale.unlink(missing_ok=True)
     # 重新初始化连接池
     db.engine = db._make_engine()
     db.SessionLocal = db._make_session(db.engine)
@@ -2889,6 +3221,8 @@ def restore_backup(zip_bytes: bytes):
 
 `backend/app/routers/system_router.py`（本任务部分）:
 ```python
+import zipfile
+
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
 from app import audit, config, db
@@ -2913,15 +3247,17 @@ def list_backups():
 
 
 @router.post("/restore")
-async def do_restore(file: UploadFile, request: Request, s=Depends(db.get_db)):
+async def do_restore(file: UploadFile, request: Request):
     content = await file.read()
     try:
         backup.restore_backup(content)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    audit.write(s, "恢复", "system", note=file.filename or "",
-                ip=request.client.host if request.client else "")
-    s.commit()
+    except (ValueError, zipfile.BadZipFile) as e:
+        raise HTTPException(400, "备份包无效或缺少数据库文件")
+    # 恢复已完成引擎重建：审计必须经新连接池写入，才能落到恢复后的数据库
+    with db.SessionLocal() as s2:
+        audit.write(s2, "恢复", "system", note=file.filename or "",
+                    ip=request.client.host if request.client else "")
+        s2.commit()
     return {"ok": True, "need_restart": True}
 ```
 
@@ -2969,6 +3305,13 @@ def test_make_qr_returns_png():
 def test_make_poster_returns_pdf():
     data = qr_poster.make_poster("青山村", "http://192.168.1.88:8080")
     assert data.startswith(b"%PDF")
+
+
+def test_poster_endpoint_delivers_pdf(auth_client):
+    """回归：/api/poster 中文文件名曾致 500（latin-1 编码失败），必须返回 PDF。"""
+    resp = auth_client.get("/api/poster")
+    assert resp.status_code == 200
+    assert resp.content.startswith(b"%PDF")
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -3071,15 +3414,18 @@ def poster():
     from app import settings_store
     pdf = qr_poster.make_poster(settings_store.get("village_name", "青山村"),
                                 qr_poster.access_url())
+    # Starlette 头部按 latin-1 编码：中文文件名必须走 RFC 5987 filename*，另给 ASCII 回退
     return StreamingResponse(io.BytesIO(pdf), media_type="application/pdf",
-                             headers={"Content-Disposition": "attachment; filename=使用海报.pdf"})
+                             headers={"Content-Disposition":
+                                      "attachment; filename=poster.pdf; "
+                                      "filename*=UTF-8''%E4%BD%BF%E7%94%A8%E6%B5%B7%E6%8A%A5.pdf"})
 ```
 （system_router 顶部补 `import io`）
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd backend && python -m pytest app/tests/test_qr_poster.py -v`
-Expected: PASS（3 passed）
+Run: `cd backend && .venv/bin/python -m pytest app/tests/test_qr_poster.py -v`
+Expected: PASS（4 passed）
 
 - [ ] **Step 5: 提交**
 
@@ -3098,8 +3444,8 @@ git commit -m "feat: 局域网 IP 检测、访问二维码与 A4 使用海报"
 
 - [ ] **Step 1: 全量回归**
 
-Run: `cd backend && python -m pytest app/tests/ -v`
-Expected: PASS（约 35 passed）——若有失败，逐条修复后再提交（修复遵循 systematic-debugging：先定位根因）。
+Run: `cd backend && .venv/bin/python -m pytest app/tests/ -v`
+Expected: 全部通过（约 50 条，以实际数量为准，不允许任何失败）——若有失败，逐条修复后再提交（修复遵循 systematic-debugging：先定位根因）。
 
 - [ ] **Step 2: 提交（如有修复）**
 
@@ -3114,6 +3460,7 @@ git commit -m "fix: 后端全量回归修复"
 
 **Files:**
 - Create: `frontend/package.json`、`frontend/vite.config.js`、`frontend/index.html`、`frontend/src/main.js`、`frontend/src/App.vue`、`frontend/src/router.js`、`frontend/src/api.js`、`frontend/src/theme.css`、`frontend/src/views/Login.vue`、`frontend/src/components/TagChip.vue`
+- Create: 9 个占位视图（router.js 静态导入所需，Tasks 16-18 将按其简报逐字覆盖）：`frontend/src/views/HomeGrid.vue`、`LedgerList.vue`、`LedgerDetail.vue`、`LedgerEdit.vue`、`Report.vue`、`Projects.vue`、`AuditLog.vue`、`Settings.vue`、`Expired.vue`（每个仅含 `<template><div>占位</div></template>` 并注释所属任务号）
 - Modify: `backend/app/routers/ledger_router.py`（list_ledgers 返回字段定义 fields）
 - Modify: `backend/app/routers/report_router.py`（新增 `GET /api/households` 户列表）
 - Test: `backend/app/tests/test_report.py` 追加户列表用例；前端以 `npm run build` 成功为验收
@@ -3419,8 +3766,10 @@ git commit -m "feat: 前端骨架与登录页；台账字段定义/户列表接�
         </div>
         <div class="tile" @click="$router.push('/report')"><span class="ic ic-gold">报</span><span class="n">户情报告</span><span class="c">按户生成</span></div>
         <div class="tile" @click="$router.push('/projects')"><span class="ic ic-gold">项</span><span class="n">乡村项目</span><span class="c">资料管理</span></div>
+        <div class="tile" @click="$router.push('/ledger/resident')"><span class="ic ic-gold">导</span><span class="n">导入 Excel</span><span class="c">电脑端</span></div>
         <div class="tile" @click="$router.push('/audit')"><span class="ic ic-gold">志</span><span class="n">操作日志</span><span class="c">审计留痕</span></div>
-        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">设</span><span class="n">系统设置</span><span class="c">备份/海报</span></div>
+        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">备</span><span class="n">数据备份</span><span class="c">自动+手动</span></div>
+        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">设</span><span class="n">系统设置</span><span class="c">密码/参数</span></div>
       </div>
       <div class="recent card">
         <h4>最近操作</h4>
@@ -3537,8 +3886,8 @@ git commit -m "feat: 九宫格管理首页（手机3列/桌面6列，实时统�
           <thead><tr><th v-for="h in tableHeaders" :key="h">{{ h }}</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="row in rows" :key="row.id" @click="$router.push(`/ledger/${key}/${row.id}`)">
-              <td v-for="h in tableHeaders" :key="h">{{ row[h] ?? '' }}</td>
-              <td><span class="op">编辑</span> <span class="op del" @click.stop="del(row)">删除</span></td>
+              <td v-for="h in tableHeaders" :key="h">{{ row[headerKeyMap[h]] ?? '' }}</td>
+              <td><span class="op" @click.stop="$router.push(`/ledger/${key}/${row.id}/edit`)">编辑</span> <span class="op del" @click.stop="del(row)">删除</span></td>
             </tr>
           </tbody>
         </table>
@@ -3582,8 +3931,14 @@ const tableHeaders = computed(() => {
     ? ['户主', '身份证号', '住址', '状态'] : ['姓名', '身份证号', '状态']
   return [...base, ...defn.value.fields.filter(f => ['monthly_amount','member_num','monitor_category','disability_category','disability_level','insured','receive_status','workplace'].includes(f.key)).map(f => f.label)]
 })
-const keyMap = computed(() => {
-  const m = {}
+const headerKeyMap = computed(() => {
+  const m = {
+    '户主': 'hz_name',
+    '姓名': 'name',
+    '身份证号': defn.value.scope === 'household' ? 'hz_idcard' : 'idcard',
+    '住址': 'address',
+    '状态': 'status',
+  }
   for (const f of defn.value.fields) m[f.label] = f.key
   return m
 })
@@ -3610,7 +3965,11 @@ async function loadDefn() {
 }
 function setStatus(v) { status.value = v; load() }
 async function del(row) {
-  if (!(await showConfirmDialog({ title: '确认删除该记录？', message: '删除后可在操作日志中追溯恢复' }))) return
+  let ok = true
+  try {
+    ok = await showConfirmDialog({ title: '确认删除该记录？', message: '删除后可在操作日志中追溯恢复' })
+  } catch (e) { ok = false }  // Vant 4 取消时 reject
+  if (!ok) return
   await api.del(`/api/ledgers/${key}/rows/${row.id}`)
   showToast('已删除')
   load()
@@ -3726,7 +4085,7 @@ async function load() {
   row.value = r
   if (defn.value.scope === 'household' && defn.value.tag_type) {
     // 通过身份证反查户 id：详情接口返回的 tag 行不含 household_id，用列表接口反查
-    const list = await api.get(`/api/ledgers/${key}?page=1&page_size=100`)
+    const list = await api.get(`/api/ledgers/${key}?page=1&page_size=500`)
     const found = list.rows.find(x => x.id === id)
     if (found && found.hz_idcard) {
       const hs = await api.get(`/api/households?q=${encodeURIComponent(found.hz_idcard)}`)
@@ -3739,7 +4098,11 @@ async function load() {
   attachments.value = await api.get(`/api/attachments?biz_type=household&biz_id=${householdId.value || id}`)
 }
 async function del() {
-  if (!(await showConfirmDialog({ title: '确认删除该记录？' }))) return
+  let ok = true
+  try {
+    ok = await showConfirmDialog({ title: '确认删除该记录？' })
+  } catch (e) { ok = false }  // Vant 4 取消时 reject
+  if (!ok) return
   await api.del(`/api/ledgers/${key}/rows/${id}`)
   showToast('已删除')
   router.push(`/ledger/${key}`)
@@ -3912,7 +4275,7 @@ git commit -m "feat: 台账列表/详情/编辑页（手机只读、桌面全功
   </div>
 </template>
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api'
 
@@ -3921,7 +4284,7 @@ const hid = computed(() => route.params.hid ? Number(route.params.hid) : 0)
 const q = ref('')
 const houses = ref([])
 const data = ref({})
-const now = new Date().toISOString().slice(0, 10)
+const now = new Date().toLocaleDateString('sv-SE')  // 本地日期 YYYY-MM-DD，避免 UTC 跨日偏移
 
 function tagName(t) {
   return { dibao: '低保户', tekun: '特困供养户', monitoring: '监测户',
@@ -3932,10 +4295,14 @@ async function loadHouses() {
   houses.value = (await api.get(`/api/households?q=${q.value}&page_size=50`)).rows
 }
 function exportPdf() { window.open(`/api/households/${hid.value}/report.pdf`) }
-onMounted(async () => {
+async function loadReport() {
   if (hid.value) data.value = await api.get(`/api/households/${hid.value}/report`)
   else await loadHouses()
-})
+}
+onMounted(loadReport)
+// 列表→详情在同一个组件实例内切换（router-view 复用），onMounted 不会重跑：
+// 必须监听路由参数重新加载，否则预览页空白
+watch(() => route.params.hid, loadReport)
 </script>
 <style scoped>
 .report { background: #fff; border: 1px solid #E2E3DA; padding: 22px; margin-bottom: 14px; }
@@ -3993,7 +4360,11 @@ async function save() {
   load()
 }
 async function del(p) {
-  if (!(await showConfirmDialog({ title: `删除项目「${p.name}」？` }))) return
+  let ok = true
+  try {
+    ok = await showConfirmDialog({ title: `删除项目「${p.name}」？` })
+  } catch (e) { ok = false }  // Vant 4 取消时 reject
+  if (!ok) return
   await api.del(`/api/projects/${p.id}`)
   load()
 }
@@ -4056,7 +4427,7 @@ onMounted(async () => {
         <van-button size="small" type="primary" @click="changePw">修改</van-button>
       </div>
       <div class="card"><h4>授权状态</h4>
-        <p class="info">状态：{{ licText }}<template v-if="lic.status === 'trial'">（剩余 {{ lic.days_left }} 天）</template></p>
+        <p class="info">状态：{{ licText[lic.status] }}<template v-if="lic.status === 'trial'">（剩余 {{ lic.days_left }} 天）</template></p>
         <p class="info">机器指纹：<code>{{ lic.fingerprint }}</code>（购买激活码时发给开发者）</p>
         <van-field v-if="lic.status !== 'active'" v-model="code" placeholder="XXXX-XXXX-XXXX-XXXX" label="激活码" />
         <van-button v-if="lic.status !== 'active'" size="small" type="primary" @click="activate">激活</van-button>
@@ -4064,7 +4435,7 @@ onMounted(async () => {
       <div class="card"><h4>访问海报与二维码</h4>
         <img :src="'/api/qr'" alt="访问二维码" class="qr" />
         <p class="info">当前地址：http://{{ info.lan_ip }}:{{ info.port }}</p>
-        <van-button size="small" @click="window.open('/api/poster')">生成使用海报 PDF</van-button>
+        <van-button size="small" @click="downloadPoster">生成使用海报 PDF</van-button>
       </div>
       <div class="card"><h4>数据备份</h4>
         <van-button size="small" type="primary" @click="backup">立即备份</van-button>
@@ -4104,6 +4475,7 @@ async function activate() {
   try { await api.post('/api/license/activate', { code: code.value }); showToast('已永久激活'); load() }
   catch (e) { showToast(e.message) }
 }
+function downloadPoster() { window.open('/api/poster') }
 async function backup() {
   const r = await api.post('/api/backup')
   showToast(`备份完成 ${r.filename}`)
@@ -4142,9 +4514,9 @@ code { font-size: 12px; }
       <h2>试用已到期</h2>
       <p v-if="status === 'expired'">试用期已结束。您的数据已<b>完整保留</b>，可随时导出全部台账数据；
         或联系开发者购买后永久激活使用。</p>
-      <p v-else class="tampered">检测到系统时间被回拨，已锁定保护数据。请恢复正确时间后重新启动。</p>
+      <p v-else-if="status === 'tampered'" class="tampered">检测到系统时间被回拨，已锁定保护数据。请恢复正确时间后重新启动。</p>
       <div class="btns" v-if="status === 'expired'">
-        <van-button type="primary" @click="window.open('/api/export-all')">导出全部数据 Excel</van-button>
+        <van-button type="primary" @click="exportAll">导出全部数据 Excel</van-button>
         <van-button @click="contact">联系开发者</van-button>
       </div>
       <div class="act" v-if="status === 'expired'">
@@ -4164,6 +4536,7 @@ const villageName = ref('青山村')
 const status = ref('expired')
 const code = ref('')
 function contact() { showToast('开发者微信：cunwu-soft（示例，请替换）') }
+function exportAll() { window.open('/api/export-all') }
 async function activate() {
   try { await api.post('/api/license/activate', { code: code.value }); location.hash = '#/' }
   catch (e) { showToast(e.message) }
@@ -4219,28 +4592,37 @@ import sys
 from pathlib import Path
 
 if getattr(sys, "frozen", False):      # PyInstaller 打包运行时
-    ROOT_DIR = Path(sys.executable).parent
+    EXE_DIR = Path(sys.executable).parent
+    ROOT_DIR = EXE_DIR                 # data/ 与可执行文件同目录，升级不覆盖
+    # onefile 模式下前端资源在解包目录 _MEIPASS/web（spec 的 datas）
+    WEB_DIR = Path(getattr(sys, "_MEIPASS", EXE_DIR)) / "web"
 else:
     ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+    WEB_DIR = ROOT_DIR / "web"
+    if not WEB_DIR.exists():
+        WEB_DIR = ROOT_DIR / "backend" / "web"  # 开发模式 vite 构建输出
 ```
 
-`backend/app/main.py` 的 `create_app` 末尾追加:
+`backend/app/main.py` 的 `create_app` 末尾追加（`from app import config` 已在 import 区）:
 ```python
     from fastapi.staticfiles import StaticFiles
     from starlette.responses import FileResponse
 
-    web_dir = config.ROOT_DIR / "web"
+    web_dir = config.WEB_DIR
     if web_dir.exists():
         app.mount("/assets", StaticFiles(directory=web_dir / "assets"), name="assets")
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str):
-            file = web_dir / full_path
-            if full_path and file.is_file():
+            # 未注册的 /api/*（含尾斜杠）必须 404，不能被 SPA 回退吞掉
+            if full_path == "api" or full_path.startswith("api/"):
+                return JSONResponse({"detail": "not found"}, status_code=404)
+            file = (web_dir / full_path).resolve()
+            # 路径穿越防护：解析后的文件必须仍位于 web 目录内（否则回退 index.html）
+            if full_path and file.is_file() and file.is_relative_to(web_dir.resolve()):
                 return FileResponse(file)
             return FileResponse(web_dir / "index.html")
 ```
-（`from app import config` 追加到 import 区。）
 
 - [ ] **Step 2: 验证**
 
@@ -4294,7 +4676,7 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas,
-          name='村务系统', console=False, upx=True)
+          name='村务系统', console=False)
 ```
 
 构建命令（Windows 机器或 CI）:
@@ -4461,20 +4843,31 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: pip install -r backend/requirements.txt pyinstaller
+      - run: pip install -r backend/requirements.txt "pyinstaller>=5.13"
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: cd frontend && npm ci && npm run build
       - run: pyinstaller ${{ matrix.spec }} --clean --distpath dist
+      - name: 组装平铺安装包
+        shell: python
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          import shutil, os, sys
+          deploy_files = ('deploy/windows/安装.bat', 'deploy/windows/备份.bat',
+                          'deploy/windows/使用说明.txt', 'deploy/macos/安装.command')
+          missing = [f for f in deploy_files if not os.path.exists(f)]
+          if missing:
+              print('缺少部署文件，终止构建:', missing)
+              sys.exit(1)
+          for f in deploy_files:
+              shutil.copy(f, 'dist')
+              print('copied', f)
+          print('dist:', sorted(os.listdir('dist')))
       - uses: actions/upload-artifact@v4
         with:
           name: 村务系统-${{ matrix.os }}
-          path: |
-            dist/*
-            deploy/windows/安装.bat
-            deploy/windows/备份.bat
-            deploy/windows/使用说明.txt
-            deploy/macos/安装.command
+          path: dist/*
 ```
 
 - [ ] **Step 2: 验证**
@@ -4482,7 +4875,7 @@ jobs:
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
 ```
-打开 GitHub Actions 页面确认两个平台构建成功并下载产物解压演练。
+打开 GitHub Actions 页面确认两个平台构建成功并下载产物。**产物布局硬校验**（Task 20 遗留）：Windows 安装包解压后 `村务系统.exe`、`安装.bat`、`备份.bat`、`使用说明.txt` 必须同级（upload-artifact 的 `dist/*` + 三个 deploy 文件已保证平铺，若布局不对安装快捷方式会悬空，必须调整 path 配置）。
 
 - [ ] **Step 3: 提交**
 

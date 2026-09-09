@@ -1,0 +1,17 @@
+:root {
+  --cunwu-red: #B01B2E;
+  --cunwu-red-deep: #8E0F1E;
+  --cunwu-gold: #C9A227;
+  --cunwu-bg: #F6F7F4;
+  --cunwu-ink: #23251F;
+  --cunwu-ink2: #6B6F64;
+  --van-primary-color: #B01B2E;
+}
+body { margin: 0; background: var(--cunwu-bg); color: var(--cunwu-ink);
+       font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
+.page-pad { padding: 12px 14px 24px; max-width: 1080px; margin: 0 auto; }
+.red-head { background: var(--cunwu-red); color: #fff; border-bottom: 2px solid var(--cunwu-gold);
+            padding: 12px 14px; font-weight: 700; }
+@media (min-width: 768px) {
+  .red-head { font-size: 18px; padding: 14px 24px; }
+}
