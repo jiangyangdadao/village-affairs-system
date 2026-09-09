@@ -35,7 +35,7 @@
   </div>
 </template>
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api'
 
@@ -44,7 +44,7 @@ const hid = computed(() => route.params.hid ? Number(route.params.hid) : 0)
 const q = ref('')
 const houses = ref([])
 const data = ref({})
-const now = new Date().toISOString().slice(0, 10)
+const now = new Date().toLocaleDateString('sv-SE')  // 本地日期 YYYY-MM-DD，避免 UTC 跨日偏移
 
 function tagName(t) {
   return { dibao: '低保户', tekun: '特困供养户', monitoring: '监测户',
@@ -55,10 +55,14 @@ async function loadHouses() {
   houses.value = (await api.get(`/api/households?q=${q.value}&page_size=50`)).rows
 }
 function exportPdf() { window.open(`/api/households/${hid.value}/report.pdf`) }
-onMounted(async () => {
+async function loadReport() {
   if (hid.value) data.value = await api.get(`/api/households/${hid.value}/report`)
   else await loadHouses()
-})
+}
+onMounted(loadReport)
+// 列表→详情在同一个组件实例内切换（router-view 复用），onMounted 不会重跑：
+// 必须监听路由参数重新加载，否则预览页空白
+watch(() => route.params.hid, loadReport)
 </script>
 <style scoped>
 .report { background: #fff; border: 1px solid #E2E3DA; padding: 22px; margin-bottom: 14px; }
