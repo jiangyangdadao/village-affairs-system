@@ -22,12 +22,17 @@ jobs:
         with: { node-version: '20' }
       - run: cd frontend && npm ci && npm run build
       - run: pyinstaller ${{ matrix.spec }} --clean --distpath dist
+      - name: 组装平铺安装包
+        shell: python
+        run: |
+          import shutil, os
+          for f in ('deploy/windows/安装.bat', 'deploy/windows/备份.bat',
+                    'deploy/windows/使用说明.txt', 'deploy/macos/安装.command'):
+              if os.path.exists(f):
+                  shutil.copy(f, 'dist')
+                  print('copied', f)
+          print('dist:', sorted(os.listdir('dist')))
       - uses: actions/upload-artifact@v4
         with:
           name: 村务系统-${{ matrix.os }}
-          path: |
-            dist/*
-            deploy/windows/安装.bat
-            deploy/windows/备份.bat
-            deploy/windows/使用说明.txt
-            deploy/macos/安装.command
+          path: dist/*
