@@ -56,7 +56,7 @@ docs/
 | 手机只读边界 | LedgerList/LedgerDetail/LedgerEdit 全部写入口（新增/编辑/删除/导入导出/附件上传）均在 `!isMobile()` 守卫内，手机端仅提示到电脑端操作（静态检查） |
 | 安全拦截 | 未登录访问受保护 API 返回 401；登录/授权状态/激活/全量导出白名单正常放行 |
 | 授权（静态+单测） | `license.check()` 含时间回拨分支（`now < last` → tampered 锁定）；`test_tampered_state_locks_without_reset` 通过；签发脚本 `deploy/scripts/gen_activation_code.py` 与 `license.make_activation_code` 对同一指纹输出一致 |
-| CI | tag `v0.1.2` 触发 Windows + macOS 双平台自动构建（绿） |
+| CI | tag `v0.1.2` → run 34364266141 双平台 success（Windows ~1m43s / macOS ~53s），产物平铺布局已校验 |
 
 **待人工演练（需真实环境，交付时执行）**
 
@@ -64,5 +64,6 @@ docs/
 - macOS 安装演练：Gatekeeper 右键打开、LaunchAgent 自启（`deploy/macos/`）
 - 真实 Android/iPhone 手机浏览器访问（手机只读边界实机确认）
 - 真实机器激活码签发 → 输入 → 解锁全流程（本机已完成签发一致性自测）
+- 九宫格与各页面 UI 浏览器点击走查（17 宫格路由已静态确认，实际浏览器交互待人工）
 
 > 页面中所有人物、村名、数字均为虚构示例。
