@@ -9,4 +9,4 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas,
-          name='村务系统', console=False, upx=True)
+          name='村务系统', console=False)
