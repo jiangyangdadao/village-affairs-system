@@ -10,16 +10,17 @@ from app import settings_store  # noqa: E402
 
 @pytest.fixture()
 def client_db(tmp_path, monkeypatch):
-    """每个测试使用独立临时数据库，避免污染开发数据。"""
+    """每个测试使用独立临时数据库；fixture 结束恢复全局引擎与连接池。"""
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
-    db.engine = db._make_engine()
-    db.SessionLocal = db._make_session(db.engine)
-    db.Base.metadata.create_all(db.engine)
+    engine = db._make_engine()
+    monkeypatch.setattr(db, "engine", engine)
+    monkeypatch.setattr(db, "SessionLocal", db._make_session(engine))
+    db.Base.metadata.create_all(engine)
     yield db
-    db.Base.metadata.drop_all(db.engine)
+    db.Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
 @pytest.fixture()
 def settings(client_db):
-    settings_store.SessionLocal = client_db.SessionLocal
     yield settings_store
