@@ -37,3 +37,9 @@ def test_report_pdf(client, seeded):
     resp = client.get(f"/api/households/{seeded}/report.pdf")
     assert resp.status_code == 200
     assert resp.content.startswith(b"%PDF")
+
+
+def test_household_list(client, seeded):
+    data = client.get("/api/households").json()
+    assert data["total"] >= 1
+    assert data["rows"][0]["hz_name"] == "王建国"

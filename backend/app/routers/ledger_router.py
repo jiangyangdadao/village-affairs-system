@@ -58,7 +58,9 @@ def list_ledgers(s=Depends(db.get_db)):
         if defn.tag_type:
             q = q.filter(model.tag_type == defn.tag_type)
         out.append({"key": defn.key, "name": defn.name, "scope": defn.scope,
-                    "unit": defn.unit, "count": q.scalar() or 0})
+                    "unit": defn.unit, "count": q.scalar() or 0,
+                    "fields": [{"key": f.key, "label": f.label, "kind": f.kind,
+                                "required": f.required, "options": f.options} for f in defn.fields]})
     return out
 
 

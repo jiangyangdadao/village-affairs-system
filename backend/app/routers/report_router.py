@@ -43,6 +43,18 @@ def aggregate(s: Session, hid: int) -> dict:
     }
 
 
+@router.get("/households")
+def households(q: str = "", page: int = 1, page_size: int = 20, s=Depends(db.get_db)):
+    query = s.query(models.Household)
+    if q:
+        query = query.filter(models.Household.hz_name.contains(q) |
+                             models.Household.hz_idcard.contains(q))
+    total = query.count()
+    rows = [models.to_json(h) for h in
+            query.order_by(models.Household.id.desc()).offset((page - 1) * page_size).limit(page_size)]
+    return {"total": total, "rows": rows}
+
+
 @router.get("/households/{hid}/report")
 def report(hid: int, s=Depends(db.get_db)):
     return aggregate(s, hid)
