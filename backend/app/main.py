@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app import auth as auth_lib
 from app import db
 from app import license as lic
-from app.routers import auth_router, ledger_router, license_router
+from app.routers import auth_router, ledger_router, license_router, report_router
 
 WHITELIST = {"/api/login", "/api/export-all", "/api/license/status", "/api/license/activate"}
 
@@ -14,6 +14,7 @@ def create_app() -> FastAPI:
     app.include_router(ledger_router.router, prefix="/api")
     app.include_router(auth_router.router, prefix="/api")
     app.include_router(license_router.router, prefix="/api")
+    app.include_router(report_router.router, prefix="/api")
     from app.routers import excel_router
     app.include_router(excel_router.router, prefix="/api")
     from app.routers import attachment_router
