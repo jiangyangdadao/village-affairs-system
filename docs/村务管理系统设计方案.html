@@ -570,7 +570,7 @@ flowchart TD
           <tr><td>二维码</td><td>qrcode + Pillow</td><td>管理首页二维码、海报生成</td></tr>
           <tr><td>密码</td><td>标准库 PBKDF2 哈希</td><td>无额外依赖</td></tr>
           <tr><td>前端</td><td>Vue 3 + Vant 4（移动优先）+ Vite</td><td>构建产物本地托管，零 CDN</td></tr>
-          <tr><td>打包</td><td>PyInstaller 单 exe + 自解压一键安装</td><td>双击即装</td></tr>
+          <tr><td>打包</td><td>PyInstaller 双平台构建（Windows exe / macOS .app）+ GitHub Actions 自动构建</td><td>双击即装</td></tr>
           <tr><td>远程协助</td><td>向日葵 / ToDesk（免费）</td><td>仅中转屏幕画面，数据不出村</td></tr>
         </tbody>
       </table></div>
@@ -613,6 +613,14 @@ flowchart TD
       </table></div>
       <h3>硬件要求</h3>
       <p>任意 Windows 10/11 电脑（4GB 内存以上），村里现有办公电脑即可；需长期开机、连接村 WiFi/路由器；电脑能上网（收微信安装包），系统运行本身不依赖外网。</p>
+      <h3>跨平台说明（Windows + macOS）</h3>
+      <ul>
+        <li>业务代码全平台兼容（FastAPI/SQLite/openpyxl/reportlab/qrcode 均支持 macOS），双平台只需分别打包，代码零改动。</li>
+        <li>平台差异：开机自启（Windows 启动文件夹 / macOS LaunchAgent）、防火墙（Windows 放行端口 / macOS 首次弹窗允许）、安装形态（Windows 一键 exe / macOS zip 拖入应用程序）。</li>
+        <li>macOS 未签名 App 首次打开需右键 → 打开（Gatekeeper 限制）；正式商用交付可申请 Apple 开发者账号签名（99 美元/年）。</li>
+        <li>授权机器指纹获取按平台适配（Windows 注册表/wmic；macOS system_profiler/IOKit）。</li>
+        <li>交付形态：Windows 为主、macOS 为补充版本；GitHub Actions 双平台自动构建，推版本 tag 即产出两个安装包。</li>
+      </ul>
     </section>
 
     <!-- 10 安全与隐私 -->
