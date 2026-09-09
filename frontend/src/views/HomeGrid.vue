@@ -13,8 +13,10 @@
         </div>
         <div class="tile" @click="$router.push('/report')"><span class="ic ic-gold">报</span><span class="n">户情报告</span><span class="c">按户生成</span></div>
         <div class="tile" @click="$router.push('/projects')"><span class="ic ic-gold">项</span><span class="n">乡村项目</span><span class="c">资料管理</span></div>
+        <div class="tile" @click="$router.push('/ledger/resident')"><span class="ic ic-gold">导</span><span class="n">导入 Excel</span><span class="c">电脑端</span></div>
         <div class="tile" @click="$router.push('/audit')"><span class="ic ic-gold">志</span><span class="n">操作日志</span><span class="c">审计留痕</span></div>
-        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">设</span><span class="n">系统设置</span><span class="c">备份/海报</span></div>
+        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">备</span><span class="n">数据备份</span><span class="c">自动+手动</span></div>
+        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">设</span><span class="n">系统设置</span><span class="c">密码/参数</span></div>
       </div>
       <div class="recent card">
         <h4>最近操作</h4>
