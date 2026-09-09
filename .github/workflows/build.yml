@@ -27,12 +27,16 @@ jobs:
         env:
           PYTHONUTF8: '1'
         run: |
-          import shutil, os
-          for f in ('deploy/windows/安装.bat', 'deploy/windows/备份.bat',
-                    'deploy/windows/使用说明.txt', 'deploy/macos/安装.command'):
-              if os.path.exists(f):
-                  shutil.copy(f, 'dist')
-                  print('copied', f)
+          import shutil, os, sys
+          deploy_files = ('deploy/windows/安装.bat', 'deploy/windows/备份.bat',
+                          'deploy/windows/使用说明.txt', 'deploy/macos/安装.command')
+          missing = [f for f in deploy_files if not os.path.exists(f)]
+          if missing:
+              print('缺少部署文件，终止构建:', missing)
+              sys.exit(1)
+          for f in deploy_files:
+              shutil.copy(f, 'dist')
+              print('copied', f)
           print('dist:', sorted(os.listdir('dist')))
       - uses: actions/upload-artifact@v4
         with:
