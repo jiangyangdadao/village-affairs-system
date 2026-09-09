@@ -3,7 +3,8 @@ from fastapi.responses import JSONResponse
 
 from app import auth as auth_lib
 from app import db
-from app.routers import auth_router, ledger_router
+from app import license as lic
+from app.routers import auth_router, ledger_router, license_router
 
 WHITELIST = {"/api/login", "/api/export-all", "/api/license/status", "/api/license/activate"}
 
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="村务管理系统")
     app.include_router(ledger_router.router, prefix="/api")
     app.include_router(auth_router.router, prefix="/api")
+    app.include_router(license_router.router, prefix="/api")
 
     @app.middleware("http")
     async def session_gate(request, call_next):
@@ -20,6 +22,17 @@ def create_app() -> FastAPI:
             token = request.cookies.get("cunwu_session")
             if not auth_lib.verify_token(token):
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def license_gate(request, call_next):
+        path = request.url.path
+        if not path.startswith("/api/") or path in WHITELIST:
+            return await call_next(request)
+        st = lic.check()
+        if st["status"] in ("expired", "tampered"):
+            return JSONResponse({"detail": st["status"], "days_left": st.get("days_left", 0)},
+                                status_code=507)
         return await call_next(request)
 
     return app
