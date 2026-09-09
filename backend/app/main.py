@@ -51,18 +51,17 @@ def create_app() -> FastAPI:
     from fastapi.staticfiles import StaticFiles
     from starlette.responses import FileResponse
 
-    web_dir = config.ROOT_DIR / "web"
-    if not web_dir.exists():
-        # 开发模式：vite 构建产物输出在 backend/web（打包后 web 与可执行文件同目录）
-        dev_web = config.ROOT_DIR / "backend" / "web"
-        if dev_web.exists():
-            web_dir = dev_web
+    web_dir = config.WEB_DIR
     if web_dir.exists():
         app.mount("/assets", StaticFiles(directory=web_dir / "assets"), name="assets")
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str):
+            # 未注册的 /api/*（含尾斜杠）必须 404，不能被 SPA 回退吞掉
+            if full_path == "api" or full_path.startswith("api/"):
+                return JSONResponse({"detail": "not found"}, status_code=404)
             file = (web_dir / full_path).resolve()
+            # 路径穿越防护：解析后的文件必须仍位于 web 目录内（否则回退 index.html）
             if full_path and file.is_file() and file.is_relative_to(web_dir.resolve()):
                 return FileResponse(file)
             return FileResponse(web_dir / "index.html")
