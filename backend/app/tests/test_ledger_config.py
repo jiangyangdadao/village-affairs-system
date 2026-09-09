@@ -1,4 +1,13 @@
+import pytest
+from fastapi import HTTPException
+
 from app import ledger_config
+
+
+def test_get_ledger_unknown_returns_404():
+    with pytest.raises(HTTPException) as e:
+        ledger_config.get_ledger("not_exist")
+    assert e.value.status_code == 404
 
 
 def test_has_11_ledgers():

@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from fastapi import HTTPException
+
 
 @dataclass
 class FieldDef:
@@ -108,5 +110,5 @@ LEDGERS = {d.key: d for d in LEDGER_LIST}
 
 def get_ledger(key: str) -> LedgerDef:
     if key not in LEDGERS:
-        raise KeyError(f"未知台账类型: {key}")
+        raise HTTPException(404, "未知台账类型")
     return LEDGERS[key]

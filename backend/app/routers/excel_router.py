@@ -26,7 +26,9 @@ def template(key: str):
 @router.post("/ledgers/{key}/import")
 async def import_rows(key: str, file: UploadFile, request: Request, s=Depends(db.get_db)):
     defn = ledger_config.get_ledger(key)
-    content = await file.read()
+    content = await file.read(21 * 1024 * 1024)
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(400, "文件超过 20MB 限制")
     try:
         rows, errors = excel_io.parse_import(defn, content)
     except Exception:

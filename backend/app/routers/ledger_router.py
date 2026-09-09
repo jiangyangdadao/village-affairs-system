@@ -228,8 +228,13 @@ def delete_row(key: str, rid: int, request: Request, s=Depends(db.get_db)):
         if not p:
             raise HTTPException(404, "记录不存在")
         before = models.to_json(p)
+        tags = s.query(models.PersonTag).filter_by(person_id=rid).all()
+        tag_before = [models.to_json(t) for t in tags]
+        for t in tags:
+            s.delete(t)
         s.delete(p)
-        audit.write(s, "删除", defn.key, "person", rid, before, None, _ip(request))
+        audit.write(s, "删除", defn.key, "person", rid, before, None, _ip(request),
+                    note=f"已级联删除 {len(tags)} 条人标签" if tags else "")
     else:
         model = models.HouseholdTag if defn.scope == "household" else models.PersonTag
         tag = s.get(model, rid)
