@@ -1,9 +1,11 @@
+import io
 import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app import audit, config, db
-from app.services import backup
+from app.services import backup, qr_poster
 
 router = APIRouter()
 
@@ -36,3 +38,23 @@ async def do_restore(file: UploadFile, request: Request):
                     ip=request.client.host if request.client else "")
         s2.commit()
     return {"ok": True, "need_restart": True}
+
+
+@router.get("/system/info")
+def system_info():
+    return {"lan_ip": qr_poster.lan_ip(), "port": config.PORT}
+
+
+@router.get("/qr")
+def qr():
+    png = qr_poster.make_qr(qr_poster.access_url())
+    return StreamingResponse(io.BytesIO(png), media_type="image/png")
+
+
+@router.get("/poster")
+def poster():
+    from app import settings_store
+    pdf = qr_poster.make_poster(settings_store.get("village_name", "青山村"),
+                                qr_poster.access_url())
+    return StreamingResponse(io.BytesIO(pdf), media_type="application/pdf",
+                             headers={"Content-Disposition": "attachment; filename=使用海报.pdf"})
