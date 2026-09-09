@@ -16,6 +16,8 @@ def create_app() -> FastAPI:
     app.include_router(license_router.router, prefix="/api")
     from app.routers import excel_router
     app.include_router(excel_router.router, prefix="/api")
+    from app.routers import attachment_router
+    app.include_router(attachment_router.router, prefix="/api")
 
     @app.middleware("http")
     async def session_gate(request, call_next):
