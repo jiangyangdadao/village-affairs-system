@@ -34,3 +34,11 @@ def test_reject_non_image_or_pdf(client):
                        files={"file": ("bad.exe", io.BytesIO(b"MZ"), "application/octet-stream")},
                        data={"biz_type": "household", "biz_id": "1"})
     assert resp.status_code == 400
+
+
+def test_reject_path_traversal_biz_type(client):
+    """回归：biz_type 路径穿越（如 ../../x）必须 400，禁止写入附件目录之外。"""
+    resp = client.post("/api/attachments",
+                       files={"file": ("证明.png", io.BytesIO(PNG_BYTES), "image/png")},
+                       data={"biz_type": "../../outside", "biz_id": "1"})
+    assert resp.status_code == 400

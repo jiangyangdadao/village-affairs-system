@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
@@ -10,6 +11,7 @@ router = APIRouter()
 ALLOWED = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg",
            ".jpeg": "image/jpeg", ".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp"}
 MAX_SIZE = 20 * 1024 * 1024
+BIZ_TYPE_RE = re.compile(r"^[a-z_]{1,20}$")  # 防路径穿越：仅小写字母与下划线
 
 
 def _ext(filename: str) -> str:
@@ -29,6 +31,8 @@ def list_attachments(biz_type: str = "", biz_id: int = 0, s=Depends(db.get_db)):
 @router.post("/attachments")
 async def upload(file: UploadFile, request: Request, s=Depends(db.get_db),
                  biz_type: str = Form(...), biz_id: int = Form(...)):
+    if not BIZ_TYPE_RE.match(biz_type or ""):
+        raise HTTPException(400, "非法业务类型")
     ext = _ext(file.filename or "")
     if ext not in ALLOWED:
         raise HTTPException(400, "仅支持 PDF 和图片文件")
