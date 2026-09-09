@@ -203,8 +203,9 @@
     <a href="#s8"><span class="toc-num">08</span>技术选型</a>
     <a href="#s9"><span class="toc-num">09</span>部署与运维</a>
     <a href="#s10"><span class="toc-num">10</span>安全与隐私</a>
-    <a href="#s11"><span class="toc-num">11</span>后续演进</a>
-    <a href="#s12"><span class="toc-num">12</span>实施要点</a>
+    <a href="#s11"><span class="toc-num">11</span>试用与授权</a>
+    <a href="#s12"><span class="toc-num">12</span>后续演进</a>
+    <a href="#s13"><span class="toc-num">13</span>实施要点</a>
   </nav>
 
   <main>
@@ -627,9 +628,39 @@ flowchart TD
       </ol>
     </section>
 
-    <!-- 11 后续演进 -->
+    <!-- 11 试用与授权 -->
     <section class="sheet" id="s11">
-      <h2><span class="secnum">11</span>后续可选演进（本版不做）</h2>
+      <h2><span class="secnum">11</span>试用与授权（商业保护）</h2>
+      <p class="lede">软件交付后默认 30 天试用，到期锁定；付费后激活码永久解锁。全程离线，不依赖网络校验。</p>
+      <h3>试用规则</h3>
+      <ul>
+        <li>默认试用期 <b>30 天</b>（自首次启动起算，可调）。</li>
+        <li>到期后锁定：登录后仅显示到期页；<b>数据保留不删除，且允许全量导出全部台账 Excel</b>（保数据退路）。</li>
+        <li>付费后开发者签发激活码，输入即永久解锁。</li>
+      </ul>
+      <h3>激活码（离线签名）</h3>
+      <ul>
+        <li>激活码 = 机器指纹 + 到期时间 + 功能范围 的 HMAC-SHA256 签名，base32 编码（形如 <span class="num">XXXX-XXXX-XXXX-XXXX</span>）。</li>
+        <li>机器指纹 = 硬盘序列号 + MAC 地址组合哈希；换电脑即失效 → 换机时开发者远程查看新指纹重新签发。</li>
+        <li>激活状态存于 <span class="num">data/</span>，升级替换 exe 不影响激活。</li>
+      </ul>
+      <h3>防绕过措施（防普通人，不防专业破解）</h3>
+      <ol>
+        <li><b>时钟回拨检测</b>：每次启动记录 <span class="num">last_seen_time</span>；系统时间早于上次记录 → 判定改时间，立即锁定。</li>
+        <li><b>重装重置防御</b>：试用起始时间与机器指纹同时写三处——data 文件、注册表、系统盘隐藏文件；启动时三方一致才放行。</li>
+        <li>诚实说明：Python 打包程序可被专业手段反编译，本方案防"改时间/重装/删文件"等普通操作，非商业级防盗版；村级场景足够。</li>
+      </ol>
+      <h3>到期页交互</h3>
+      <ul>
+        <li>红头提示"试用已到期" + 到期日期 + Excel 全量导出入口。</li>
+        <li>激活码输入框 + 激活按钮；成功提示"已永久激活"。</li>
+        <li>展示开发者联系方式（微信/电话），引导付费。</li>
+      </ul>
+    </section>
+
+    <!-- 12 后续演进 -->
+    <section class="sheet" id="s12">
+      <h2><span class="secnum">12</span>后续可选演进（本版不做）</h2>
       <div class="tbl-wrap"><table>
         <thead><tr><th>方向</th><th>说明</th></tr></thead>
         <tbody>
@@ -642,15 +673,16 @@ flowchart TD
       </table></div>
     </section>
 
-    <!-- 12 实施要点 -->
-    <section class="sheet" id="s12">
-      <h2><span class="secnum">12</span>开发实施要点（供编写实施计划参考）</h2>
+    <!-- 13 实施要点 -->
+    <section class="sheet" id="s13">
+      <h2><span class="secnum">13</span>开发实施要点（供编写实施计划参考）</h2>
       <ol>
         <li>通用台账引擎先行：字段配置 → 表单/列表/详情自动渲染 → CRUD → 附件 → 日志，跑通低保户一个台账作为样板。</li>
         <li>Excel 导入导出是质量关键：模板生成、预校验、错误报告、身份证归并需重点测试。</li>
         <li>手机端只读与电脑端全功能的权限边界必须用测试覆盖（手机端不得出现任何写操作入口）。</li>
         <li>一键安装脚本在纯净 Windows 虚拟机中反复演练（无 Python 环境、不同 IP 段、中文路径）。</li>
         <li>备份恢复演练：模拟数据目录损坏后从备份恢复全流程。</li>
+        <li>授权模块与业务引擎解耦：校验集中在服务启动层（中间件），到期仅拦截业务接口、保留数据导出接口；激活码签发工具做成独立小脚本（开发者本地运行）。</li>
       </ol>
     </section>
 
