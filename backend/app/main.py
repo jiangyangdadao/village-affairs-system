@@ -11,6 +11,7 @@ WHITELIST = {"/api/login", "/api/export-all", "/api/license/status", "/api/licen
 
 def create_app() -> FastAPI:
     app = FastAPI(title="村务管理系统")
+    db.init_db()
     app.include_router(ledger_router.router, prefix="/api")
     app.include_router(auth_router.router, prefix="/api")
     app.include_router(license_router.router, prefix="/api")
