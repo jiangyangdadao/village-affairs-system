@@ -37,7 +37,6 @@ def test_update_rejects_blank_name(client):
     assert client.put(f"/api/projects/{pid}", json={"name": ""}).status_code == 400
 
 
-@pytest.mark.skip(reason="audit 查询接口在 Task 11 实现后启用")
 def test_village_profile_audit_records_before_after(client):
     client.put("/api/village-profile", json={"intro": "旧简介", "phone": "111"})
     client.put("/api/village-profile", json={"intro": "新简介", "phone": "222"})

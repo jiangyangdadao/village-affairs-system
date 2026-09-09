@@ -32,7 +32,6 @@ def test_create_and_list_dibao(client):
     assert data["rows"][0]["monthly_amount"] == 930
 
 
-@pytest.mark.skip(reason="audit 查询接口在 Task 14 实现")
 def test_create_writes_operation_log(client):
     _create_dibao(client)
     resp = client.get("/api/audit?op_type=新增&module=dibao&page=1&page_size=10")

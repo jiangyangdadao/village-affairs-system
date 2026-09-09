@@ -21,6 +21,8 @@ def create_app() -> FastAPI:
     app.include_router(attachment_router.router, prefix="/api")
     from app.routers import project_router
     app.include_router(project_router.router, prefix="/api")
+    from app.routers import audit_router
+    app.include_router(audit_router.router, prefix="/api")
 
     @app.middleware("http")
     async def session_gate(request, call_next):
