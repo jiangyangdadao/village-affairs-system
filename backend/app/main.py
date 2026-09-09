@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app import auth as auth_lib
+from app import config
 from app import db
 from app import license as lic
 from app.routers import auth_router, ledger_router, license_router, report_router
@@ -46,6 +47,25 @@ def create_app() -> FastAPI:
             return JSONResponse({"detail": st["status"], "days_left": st.get("days_left", 0)},
                                 status_code=507)
         return await call_next(request)
+
+    from fastapi.staticfiles import StaticFiles
+    from starlette.responses import FileResponse
+
+    web_dir = config.ROOT_DIR / "web"
+    if not web_dir.exists():
+        # 开发模式：vite 构建产物输出在 backend/web（打包后 web 与可执行文件同目录）
+        dev_web = config.ROOT_DIR / "backend" / "web"
+        if dev_web.exists():
+            web_dir = dev_web
+    if web_dir.exists():
+        app.mount("/assets", StaticFiles(directory=web_dir / "assets"), name="assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        def spa(full_path: str):
+            file = (web_dir / full_path).resolve()
+            if full_path and file.is_file() and file.is_relative_to(web_dir.resolve()):
+                return FileResponse(file)
+            return FileResponse(web_dir / "index.html")
 
     return app
 
