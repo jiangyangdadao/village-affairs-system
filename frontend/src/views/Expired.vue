@@ -40,14 +40,14 @@ onMounted(async () => {
 </script>
 <style scoped>
 .exp-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-.exp-card { width: 480px; background: #fff; border-top: 4px solid #B01B2E; border-radius: 0 0 10px 10px;
-            padding: 28px 30px; box-shadow: 0 8px 24px rgba(20,22,18,.1); }
-.eyebrow { font-size: 11.5px; letter-spacing: .2em; color: #B01B2E; }
-h2 { font-family: "Noto Serif SC", serif; font-size: 24px; margin: 8px 0 12px; }
-p { font-size: 13.5px; color: #595D52; line-height: 1.9; }
-p b { color: #B01B2E; }
-.tampered { color: #B01B2E; }
+.exp-card { width: 480px; background: #fff; border-top: 4px solid #0E9F6E; border-radius: 0 0 10px 10px;
+            padding: 28px 30px; box-shadow: 0 8px 24px rgba(28,31,38,.08); }
+.eyebrow { font-size: 11.5px; letter-spacing: .2em; color: #0E9F6E; }
+h2 { font-size: 24px; margin: 8px 0 12px; color: #1C1F26; }
+p { font-size: 13.5px; color: #6A7280; line-height: 1.9; }
+p b { color: #0E9F6E; }
+.tampered { color: #DC2626; }
 .btns { display: flex; gap: 10px; margin: 14px 0 18px; }
-.act { border-top: 1px solid #E7E8E1; padding-top: 16px; }
-.note { font-size: 11.5px; color: #8B8F82; margin-top: 10px; }
+.act { border-top: 1px solid #E7E9EE; padding-top: 16px; }
+.note { font-size: 11.5px; color: #9BA1AC; margin-top: 10px; }
 </style>

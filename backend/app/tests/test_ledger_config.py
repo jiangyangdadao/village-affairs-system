@@ -10,12 +10,13 @@ def test_get_ledger_unknown_returns_404():
     assert e.value.status_code == 404
 
 
-def test_has_11_ledgers():
-    assert len(ledger_config.LEDGER_LIST) == 11
+def test_has_14_ledgers():
+    assert len(ledger_config.LEDGER_LIST) == 14
     keys = {d.key for d in ledger_config.LEDGER_LIST}
     assert keys == {
         "resident", "poverty_alleviated", "monitoring", "dibao", "tekun",
         "disabled", "party", "veteran", "employment", "medical", "pension",
+        "subsidy", "edu_aid", "med_aid",
     }
 
 
@@ -25,17 +26,31 @@ def test_resident_has_no_tag_type():
 
 
 def test_household_tag_ledgers():
-    for key in ["poverty_alleviated", "monitoring", "dibao", "tekun"]:
+    for key in ["poverty_alleviated", "monitoring", "dibao", "tekun", "subsidy"]:
         d = ledger_config.get_ledger(key)
         assert d.scope == "household"
         assert d.tag_type == key
 
 
 def test_person_tag_ledgers():
-    for key in ["disabled", "party", "veteran", "employment", "medical", "pension"]:
+    for key in ["disabled", "party", "veteran", "employment", "medical", "pension",
+                "edu_aid", "med_aid"]:
         d = ledger_config.get_ledger(key)
         assert d.scope == "person"
         assert d.tag_type == key
+
+
+def test_monitoring_status_options():
+    d = ledger_config.get_ledger("monitoring")
+    assert d.status_options == ["风险未消除", "风险已消除"]
+    assert d.status_default == "风险未消除"
+
+
+def test_multi_ledgers_allow_multiple_rows():
+    for key in ["employment", "edu_aid", "med_aid"]:
+        assert ledger_config.get_ledger(key).multi
+    assert not ledger_config.get_ledger("dibao").multi
+    assert not ledger_config.get_ledger("subsidy").multi
 
 
 def test_field_keys_unique_per_ledger():

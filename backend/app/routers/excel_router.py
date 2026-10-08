@@ -68,6 +68,7 @@ def _all_rows(s, defn, q="", status=""):
             row = models.to_json(p)
             h = s.get(models.Household, p.household_id)
             row["hz_name"] = h.hz_name if h else ""
+            row["hz_idcard"] = h.hz_idcard if h else ""
             rows.append(row)
         return rows
     model = models.HouseholdTag if defn.scope == "household" else models.PersonTag

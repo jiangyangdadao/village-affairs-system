@@ -43,3 +43,13 @@ def test_village_profile_audit_records_before_after(client):
     items = client.get("/api/audit", params={"module": "village_profile"}).json()["items"]
     assert items[0]["before_json"]
     assert "新简介" in items[0]["after_json"]
+
+
+def test_village_name_writable(client):
+    assert client.put("/api/village-profile",
+                      json={"village_name": "绿水村", "intro": "……", "phone": ""}).status_code == 200
+    data = client.get("/api/village-profile").json()
+    assert data["village_name"] == "绿水村"
+    # 空村名回退默认值
+    client.put("/api/village-profile", json={"village_name": "", "intro": "", "phone": ""})
+    assert client.get("/api/village-profile").json()["village_name"] == "青山村"

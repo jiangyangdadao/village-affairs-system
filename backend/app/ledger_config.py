@@ -20,6 +20,9 @@ class LedgerDef:
     tag_type: str | None        # None = 居民信息（直接查 person 表）
     unit: str                   # 户 / 人
     fields: list[FieldDef]
+    status_options: list[str] | None = None   # 户级台账状态筛选选项；None 用默认「享受中/已退出」
+    status_default: str | None = None         # 户级新建默认状态；None 用「享受中」
+    multi: bool = False                        # 允许同人/同户多条记录（不去重，如务工、资助流水）
 
 
 def _f(key, label, kind="text", required=False, options=None):
@@ -37,6 +40,7 @@ LEDGER_LIST = [
                   _f("measures", "帮扶措施"),
               ]),
     LedgerDef(key="monitoring", name="监测户", scope="household", tag_type="monitoring", unit="户",
+              status_options=["风险未消除", "风险已消除"], status_default="风险未消除",
               fields=[
                   _f("monitor_category", "监测类别", "select", required=True,
                      options=["脱贫不稳定户", "边缘易致贫户", "突发严重困难户"]),
@@ -78,7 +82,7 @@ LEDGER_LIST = [
                      options=["在乡老复员军人", "带病回乡", "两参人员", "其他优抚", "无"]),
                   _f("honor_plaque", "是否悬挂光荣牌", "select", options=["是", "否"]),
               ]),
-    LedgerDef(key="employment", name="务工信息", scope="person", tag_type="employment", unit="人",
+    LedgerDef(key="employment", name="务工信息", scope="person", tag_type="employment", unit="人", multi=True,
               fields=[
                   _f("workplace", "工作地点", required=True),
                   _f("employer", "单位"),
@@ -102,6 +106,36 @@ LEDGER_LIST = [
                   _f("payment_amount", "缴费金额", "number"),
                   _f("receive_status", "领取状态", "select", options=["未领取", "领取中"]),
                   _f("monthly_pension", "月养老金", "number"),
+              ]),
+    LedgerDef(key="subsidy", name="惠民补贴", scope="household", tag_type="subsidy", unit="户",
+              fields=[
+                  _f("subsidy_type", "补贴类型", "select", required=True,
+                     options=["耕地地力保护补贴", "种粮补贴", "稻谷补贴", "农机购置补贴", "其他"]),
+                  _f("subsidy_year", "补贴年度", required=True),
+                  _f("subsidy_area", "补贴面积(亩)", "number"),
+                  _f("subsidy_amount", "补贴金额(元)", "number", required=True),
+                  _f("pay_status", "发放状态", "select", options=["待发放", "已发放", "发放失败"]),
+                  _f("pay_date", "发放时间", "date"),
+              ]),
+    LedgerDef(key="edu_aid", name="教育资助", scope="person", tag_type="edu_aid", unit="人", multi=True,
+              fields=[
+                  _f("edu_stage", "学段", "select", required=True,
+                     options=["学前教育", "义务教育", "高中", "中职", "高职", "本科"]),
+                  _f("school", "学校名称"),
+                  _f("aid_type", "资助类型", "select", required=True,
+                     options=["雨露计划", "助学金", "免学费", "寄宿生补助", "其他"]),
+                  _f("aid_amount", "资助金额(元)", "number"),
+                  _f("semester", "学期", "select", options=["春季", "秋季"]),
+                  _f("period", "年度"),
+              ]),
+    LedgerDef(key="med_aid", name="医疗救助", scope="person", tag_type="med_aid", unit="人", multi=True,
+              fields=[
+                  _f("disease", "疾病名称"),
+                  _f("treat_date", "就医时间", "date"),
+                  _f("total_cost", "医疗总费用(元)", "number", required=True),
+                  _f("insure_reimburse", "医保报销(元)", "number"),
+                  _f("major_aid", "大病救助(元)", "number"),
+                  _f("self_pay", "自付金额(元)", "number"),
               ]),
 ]
 

@@ -1,86 +1,152 @@
 <template>
-  <div>
-    <div class="red-head">管理首页<span class="sub">{{ villageName }} · 全部模块</span></div>
-    <div class="page-pad">
-      <div v-if="license.status === 'trial'" class="trial-tip">
-        试用期剩余 {{ license.days_left }} 天 · 到期后仍可导出全部数据
+  <div class="page-pad">
+    <div v-if="license.status === 'trial'" class="trial-tip">
+      试用期剩余 {{ license.days_left }} 天 · 到期后仍可导出全部数据
+    </div>
+
+    <!-- 村情速览 -->
+    <div class="stats">
+      <div class="stat" @click="$router.push('/ledger/resident')">
+        <span class="lb">常住人口</span>
+        <span class="num">{{ overview.resident ?? '—' }}<small>人</small></span>
       </div>
-      <div class="grid">
-        <div v-for="t in dataTiles" :key="t.key" class="tile" @click="openLedger(t.key)">
-          <span class="ic ic-red">{{ t.char }}</span>
-          <span class="n">{{ t.name }}</span>
-          <span class="c">{{ t.count }} {{ t.unit }}</span>
-        </div>
-        <div class="tile" @click="$router.push('/report')"><span class="ic ic-gold">报</span><span class="n">户情报告</span><span class="c">按户生成</span></div>
-        <div class="tile" @click="$router.push('/projects')"><span class="ic ic-gold">项</span><span class="n">乡村项目</span><span class="c">资料管理</span></div>
-        <div class="tile" @click="$router.push('/ledger/resident')"><span class="ic ic-gold">导</span><span class="n">导入 Excel</span><span class="c">电脑端</span></div>
-        <div class="tile" @click="$router.push('/audit')"><span class="ic ic-gold">志</span><span class="n">操作日志</span><span class="c">审计留痕</span></div>
-        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">备</span><span class="n">数据备份</span><span class="c">自动+手动</span></div>
-        <div class="tile" @click="$router.push('/settings')"><span class="ic ic-gold">设</span><span class="n">系统设置</span><span class="c">密码/参数</span></div>
+      <div class="stat" @click="$router.push('/report')">
+        <span class="lb">户数</span>
+        <span class="num">{{ overview.household ?? '—' }}<small>户</small></span>
       </div>
-      <div class="recent card">
-        <h4>最近操作</h4>
-        <div v-for="r in recent" :key="r.id" class="recent-row">
-          <span>{{ fmt(r.op_time) }}</span><b>{{ r.op_type }}</b><span>{{ r.module }} {{ r.note }}</span>
+      <div class="stat hot" @click="$router.push('/monitoring')">
+        <span class="lb">监测对象</span>
+        <span class="num">{{ overview.monitoring ?? '—' }}<small>户</small></span>
+        <span class="dlt" v-if="overview.monitoring_unresolved">{{ overview.monitoring_unresolved }} 户未消除</span>
+      </div>
+      <div class="stat" @click="$router.push('/ledger/dibao')">
+        <span class="lb">低保 · 特困</span>
+        <span class="num">{{ overview.dibao_tekun ?? '—' }}<small>户</small></span>
+      </div>
+    </div>
+
+    <!-- 待办提醒 -->
+    <div class="panel">
+      <div class="panel-head"><b>待办提醒</b><span v-if="todos.length" class="cnt">{{ todos.length }} 项</span></div>
+      <div v-if="!todos.length" class="empty">暂无待办事项</div>
+      <div v-for="(t, i) in todos" :key="i" class="todo" @click="openTodo(t)">
+        <span class="ic" :class="t.type === 'unresolved' ? 'r' : 'w'">{{ todoChar(t.type) }}</span>
+        <span class="tx">{{ t.text }}</span>
+        <span class="arr">›</span>
+      </div>
+    </div>
+
+    <!-- 台账数据概览 -->
+    <div class="panel">
+      <div class="panel-head"><b>台账数据概览</b></div>
+      <div class="bars">
+        <div v-for="l in ledgerStats" :key="l.key" class="bar-row">
+          <span class="bar-name">{{ l.name }}</span>
+          <span class="bar-track"><span class="bar-fill" :style="{ width: barWidth(l.count) }"></span></span>
+          <span class="bar-count">{{ l.count }}</span>
         </div>
+      </div>
+    </div>
+
+    <!-- 最近操作 -->
+    <div class="panel">
+      <div class="panel-head"><b>最近操作</b></div>
+      <div v-if="!recent.length" class="empty">暂无操作记录</div>
+      <div v-for="r in recent" :key="r.id" class="recent-row">
+        <span class="t">{{ fmt(r.op_time) }}</span>
+        <b>{{ r.op_type }}</b>
+        <span class="m">{{ r.module }}<template v-if="r.note"> · {{ r.note }}</template></span>
       </div>
     </div>
   </div>
 </template>
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 
 const router = useRouter()
-const villageName = ref('')
 const license = ref({ status: 'trial', days_left: 30 })
-const stats = ref([])
+const overview = ref({})
+const todos = ref([])
 const recent = ref([])
+const ledgers = ref([])
 
-const CHARS = { resident: '居', poverty_alleviated: '脱', monitoring: '监', dibao: '低',
-  tekun: '特', disabled: '残', party: '党', veteran: '军', employment: '工',
-  medical: '医', pension: '养' }
+// 台账数据概览：排除「居民信息」（基础信息），按记录数降序
+const ledgerStats = computed(() =>
+  ledgers.value.filter(l => l.key !== 'resident').slice().sort((a, b) => b.count - a.count))
+const maxLedgerCount = computed(() => Math.max(1, ...ledgerStats.value.map(l => l.count)))
+function barWidth(count) { return `${(count / maxLedgerCount.value) * 100}%` }
 
-const dataTiles = ref([])
-
-function openLedger(key) { router.push(`/ledger/${key}`) }
 function fmt(s) { return (s || '').slice(5, 16) }
+function todoChar(type) { return { visit: '访', unresolved: '险', medical: '缴' }[type] || '办' }
+function openTodo(t) {
+  if (t.target) router.push(t.target)
+}
 
 onMounted(async () => {
-  try { villageName.value = (await api.get('/api/me')).village_name } catch (e) { /* ignore */ }
   try { license.value = await api.get('/api/license/status') } catch (e) { /* ignore */ }
-  const data = await api.get('/api/stats')
-  stats.value = data.ledgers
-  recent.value = data.recent
-  dataTiles.value = data.ledgers.map(l => ({
-    key: l.key, name: l.name, count: l.count, unit: l.unit,
-    char: CHARS[l.key] || '册',
-  }))
+  try {
+    const data = await api.get('/api/stats')
+    overview.value = data.overview || {}
+    todos.value = data.todos || []
+    recent.value = data.recent || []
+    ledgers.value = data.ledgers || []
+  } catch (e) { /* 工作台容错，静默降级 */ }
 })
 </script>
 <style scoped>
-.sub { font-size: 11.5px; font-weight: 400; margin-left: 10px; color: rgba(255,255,255,.75); }
-.trial-tip { background: #F7EAE7; color: #B01B2E; border-radius: 8px; padding: 8px 14px;
-             font-size: 12.5px; margin-bottom: 12px; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
-.tile { background: #fff; border: 1px solid #E7E8E1; border-radius: 12px; padding: 12px 4px 10px;
-        text-align: center; cursor: pointer; }
-.ic { width: 42px; height: 42px; border-radius: 11px; margin: 0 auto 7px; display: flex;
-      align-items: center; justify-content: center; font-family: "Noto Serif SC", serif;
-      font-size: 19px; font-weight: 700; box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); }
-.ic-red { background: #B01B2E; color: #fff; }
-.ic-gold { background: #C9A227; color: #fff; }
-.n { display: block; font-size: 12px; font-weight: 500; color: #23251F; }
-.c { display: block; font-size: 10.5px; color: #8B8F82; margin-top: 1px; font-variant-numeric: tabular-nums; }
-.card { background: #fff; border: 1px solid #E7E8E1; border-radius: 10px; padding: 14px 16px; }
-.card h4 { margin: 0 0 10px; font-size: 13.5px; }
-.recent-row { display: flex; gap: 12px; font-size: 12.5px; color: #6B6F64;
-              padding: 6px 0; border-bottom: 1px solid #F0F1EC; }
+.trial-tip { background: var(--primary-soft); color: var(--primary-deep); border-radius: 8px;
+             padding: 8px 14px; font-size: 12.5px; margin-bottom: 14px; }
+
+/* 村情速览 */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+        padding: 14px 16px; cursor: pointer; transition: border-color .15s; }
+.stat:hover { border-color: var(--primary); }
+.lb { display: block; font-size: 12px; color: var(--ink3); }
+.num { display: block; font-size: 26px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.num small { font-size: 12px; color: var(--ink3); font-weight: 400; margin-left: 2px; }
+.dlt { display: block; font-size: 11px; color: var(--danger); margin-top: 3px; }
+.stat.hot .num { color: var(--danger); }
+
+/* 面板 */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+.panel-head { display: flex; align-items: center; justify-content: space-between;
+               padding: 11px 16px; border-bottom: 1px solid var(--line-soft); }
+.panel-head b { font-size: 13.5px; }
+.cnt { font-size: 11px; color: var(--danger); background: var(--danger-soft); border-radius: 999px; padding: 1px 8px; }
+.empty { padding: 16px; font-size: 12.5px; color: var(--ink3); text-align: center; }
+.todo { display: flex; align-items: center; gap: 10px; padding: 11px 16px;
+        border-bottom: 1px solid var(--line-soft); font-size: 13px; cursor: pointer; }
+.todo:last-child { border-bottom: none; }
+.todo:hover { background: var(--bg); }
+.todo .ic { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center;
+            justify-content: center; font-size: 12px; flex-shrink: 0; }
+.todo .ic.w { background: var(--warn-soft); color: var(--warn); }
+.todo .ic.r { background: var(--danger-soft); color: var(--danger); }
+.todo .tx { flex: 1; }
+.todo .arr { color: #C4C8D0; }
+
+/* 台账数据概览条形图 */
+.bars { padding: 4px 16px 12px; }
+.bar-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.bar-name { width: 80px; flex-shrink: 0; font-size: 12.5px; color: var(--ink);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { flex: 1; height: 10px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+.bar-count { width: 30px; flex-shrink: 0; text-align: right; font-size: 12px;
+             color: var(--ink2); font-variant-numeric: tabular-nums; }
+
+/* 最近操作 */
+.recent-row { display: flex; gap: 10px; align-items: center; padding: 10px 16px;
+              border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
 .recent-row:last-child { border-bottom: none; }
-.recent-row b { color: #B01B2E; }
-@media (min-width: 768px) {
-  .grid { grid-template-columns: repeat(6, 1fr); }
-  .n { font-size: 12.5px; }
+.recent-row .t { color: var(--ink3); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.recent-row b { color: var(--primary); }
+.recent-row .m { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 767px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

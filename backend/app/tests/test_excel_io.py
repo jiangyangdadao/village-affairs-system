@@ -126,3 +126,51 @@ def test_person_tag_export_has_identity_columns(auth_client):
                for i, c in enumerate(ws[1], start=1) if c.value}
     assert ws.cell(2, headers["性别"]).value == "女"
     assert ws.cell(2, headers["姓名"]).value == "李秀兰"
+
+
+def test_resident_template_has_hz_idcard_column():
+    defn = ledger_config.get_ledger("resident")
+    wb = load_workbook(BytesIO(excel_io.build_template(defn)))
+    ws = wb.active
+    headers = [str(c.value).replace(" *", "").replace("*", "").strip() for c in ws[1]]
+    assert "户主身份证" in headers and "姓名" in headers and "身份证" in headers
+
+
+def _resident_workbook():
+    defn = ledger_config.get_ledger("resident")
+    wb = load_workbook(BytesIO(excel_io.build_template(defn)))
+    ws = wb.active
+    headers = {str(c.value).replace(" *", "").replace("*", "").strip(): i
+               for i, c in enumerate(ws[1], start=1) if c.value}
+    # 户主行 + 成员行：共享户主身份证、本人身份证不同
+    ws.cell(3, headers["户主身份证"]).value = "110101195803041234"
+    ws.cell(3, headers["姓名"]).value = "王建国"
+    ws.cell(3, headers["身份证"]).value = "110101195803041234"
+    ws.cell(3, headers["与户主关系"]).value = "户主"
+    ws.cell(4, headers["户主身份证"]).value = "110101195803041234"
+    ws.cell(4, headers["姓名"]).value = "李秀兰"
+    ws.cell(4, headers["身份证"]).value = "110101196008151234"
+    ws.cell(4, headers["与户主关系"]).value = "配偶"
+    buf = BytesIO()
+    wb.save(buf)
+    return defn, buf.getvalue()
+
+
+def test_resident_import_links_persons_to_household(client_db):
+    """同户多成员共享户主身份证不应被误判「文件内重复」，且正确归并到同一户。"""
+    defn, blob = _resident_workbook()
+    rows, errors = excel_io.parse_import(defn, blob)
+    assert errors == []
+    assert len(rows) == 2
+    s = client_db.SessionLocal()
+    result = excel_io.apply_import(s, defn, rows)
+    s.commit()
+    s.close()
+    assert result == {"added": 2, "updated": 0}
+    s = client_db.SessionLocal()
+    h = s.query(models.Household).one()
+    assert h.hz_name == "王建国"
+    p1 = s.query(models.Person).filter_by(idcard="110101195803041234").one()
+    p2 = s.query(models.Person).filter_by(idcard="110101196008151234").one()
+    assert p1.household_id == h.id and p2.household_id == h.id
+    s.close()

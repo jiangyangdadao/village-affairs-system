@@ -87,11 +87,14 @@ def get_profile():
 
 @router.put("/village-profile")
 def put_profile(data: dict, request: Request, s=Depends(db.get_db)):
-    before = {"intro": settings_store.get("village_intro", ""),
+    before = {"village_name": settings_store.get("village_name", "青山村"),
+              "intro": settings_store.get("village_intro", ""),
               "phone": settings_store.get("village_phone", "")}
+    settings_store.set("village_name", (data.get("village_name") or "").strip() or "青山村")
     settings_store.set("village_intro", data.get("intro") or "")
     settings_store.set("village_phone", data.get("phone") or "")
-    after = {"intro": data.get("intro") or "", "phone": data.get("phone") or ""}
+    after = {"village_name": settings_store.get("village_name", "青山村"),
+             "intro": data.get("intro") or "", "phone": data.get("phone") or ""}
     audit.write(s, "编辑", "village_profile", before=before, after=after, ip=_ip(request))
     s.commit()
     return {"ok": True}

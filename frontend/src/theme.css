@@ -1,17 +1,35 @@
+/* ===== 村务管理系统 · 扁平化翠绿主题 ===== */
 :root {
-  --cunwu-red: #B01B2E;
-  --cunwu-red-deep: #8E0F1E;
-  --cunwu-gold: #C9A227;
-  --cunwu-bg: #F6F7F4;
-  --cunwu-ink: #23251F;
-  --cunwu-ink2: #6B6F64;
-  --van-primary-color: #B01B2E;
+  /* 主色 */
+  --primary: #0E9F6E;          /* 翠绿主色 */
+  --primary-deep: #0A7A52;     /* 深翠绿（正向状态、链接） */
+  --primary-soft: #E2F5EC;     /* 主色浅底（选中/图标底） */
+  /* 中性色（带蓝灰倾向，非纯灰） */
+  --bg: #F4F6F8;               /* 页面底色 */
+  --surface: #FFFFFF;          /* 卡片/表面 */
+  --ink: #1C1F26;              /* 正文 */
+  --ink2: #6A7280;             /* 次要 */
+  --ink3: #9BA1AC;             /* 弱/占位 */
+  --line: #E7E9EE;             /* 边框/分割 */
+  --line-soft: #F0F1F4;        /* 行分割 */
+  /* 语义色 */
+  --warn: #E8910A;
+  --warn-soft: #FBF0E0;
+  --danger: #DC2626;
+  --danger-soft: #FBEAEA;
+
+  --van-primary-color: #0E9F6E;
 }
-body { margin: 0; background: var(--cunwu-bg); color: var(--cunwu-ink);
-       font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+/* 内容容器（各页面共用） */
 .page-pad { padding: 12px 14px 24px; max-width: 1080px; margin: 0 auto; }
-.red-head { background: var(--cunwu-red); color: #fff; border-bottom: 2px solid var(--cunwu-gold);
-            padding: 12px 14px; font-weight: 700; }
 @media (min-width: 768px) {
-  .red-head { font-size: 18px; padding: 14px 24px; }
+  .page-pad { padding: 20px 24px 32px; }
 }

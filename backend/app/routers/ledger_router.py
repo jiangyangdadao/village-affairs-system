@@ -28,7 +28,23 @@ def _parse_date(v):
 
 def _split_extra(defn, data: dict) -> dict:
     extra_keys = {f.key for f in defn.fields}
-    return {k: v for k, v in data.items() if k in extra_keys and v not in ("", None)}
+    extra = {k: v for k, v in data.items() if k in extra_keys and v not in ("", None)}
+    extra = records.coerce_numbers(extra)
+    return _auto_compute(defn, extra)
+
+
+def _auto_compute(defn, extra: dict) -> dict:
+    """医疗救助的自付金额自动计算：总费用 − 医保报销 − 大病救助（缺项时跳过）。"""
+    if defn.key != "med_aid":
+        return extra
+    try:
+        total = float(extra.get("total_cost") or 0)
+        reimburse = float(extra.get("insure_reimburse") or 0)
+        aid = float(extra.get("major_aid") or 0)
+    except (TypeError, ValueError):
+        return extra
+    extra["self_pay"] = round(max(total - reimburse - aid, 0), 2)
+    return extra
 
 
 def _tag_row_dict(defn, tag) -> dict:
@@ -58,7 +74,9 @@ def list_ledgers(s=Depends(db.get_db)):
         if defn.tag_type:
             q = q.filter(model.tag_type == defn.tag_type)
         out.append({"key": defn.key, "name": defn.name, "scope": defn.scope,
-                    "unit": defn.unit, "count": q.scalar() or 0,
+                    "tag_type": defn.tag_type, "unit": defn.unit,
+                    "count": q.scalar() or 0,
+                    "status_options": defn.status_options,
                     "fields": [{"key": f.key, "label": f.label, "kind": f.kind,
                                 "required": f.required, "options": f.options} for f in defn.fields]})
     return out
@@ -122,8 +140,21 @@ def get_row(key: str, rid: int, s=Depends(db.get_db)):
     if not obj:
         raise HTTPException(404, "记录不存在")
     if defn.tag_type is None:
-        return models.to_json(obj)
-    return _tag_row_dict(defn, obj)
+        row = models.to_json(obj)
+        h = s.get(models.Household, obj.household_id)
+        row.update({"hz_name": h.hz_name if h else "", "hz_idcard": h.hz_idcard if h else ""})
+        return row
+    row = _tag_row_dict(defn, obj)
+    if defn.scope == "household":
+        h = s.get(models.Household, obj.household_id)
+        row.update({"household_id": obj.household_id, "hz_name": h.hz_name if h else "",
+                    "hz_idcard": h.hz_idcard if h else "", "phone": h.phone if h else "",
+                    "address": h.address if h else ""})
+    else:
+        p = s.get(models.Person, obj.person_id)
+        row.update({"person_id": obj.person_id, "name": p.name if p else "",
+                    "idcard": p.idcard if p else ""})
+    return row
 
 
 @router.post("/ledgers/{key}/rows")
@@ -134,7 +165,14 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
             raise HTTPException(400, f"{f.label}为必填")
     extra = _split_extra(defn, data)
     if defn.tag_type is None:
-        p = records.find_or_create_person(s, data)
+        hz_idcard = (data.get("hz_idcard") or "").strip()
+        household_id = 0
+        if hz_idcard:
+            idcard = (data.get("idcard") or "").strip()
+            hz_name = (data.get("name") or "") if idcard == hz_idcard else ""
+            household_id = records.find_or_create_household(
+                s, {"hz_idcard": hz_idcard, "hz_name": hz_name}).id
+        p = records.find_or_create_person(s, data, household_id)
         s.flush()
         audit.write(s, "新增", defn.key, "person", p.id, None, models.to_json(p), _ip(request))
         s.commit()
@@ -152,14 +190,14 @@ def create_row(key: str, data: dict, request: Request, s=Depends(db.get_db)):
             s.commit()
             return {"id": tag.id, "updated": True}
         tag = models.HouseholdTag(household_id=h.id, tag_type=defn.tag_type,
-                                  status=data.get("status") or "享受中",
+                                  status=data.get("status") or defn.status_default or "享受中",
                                   start_date=_parse_date(data.get("start_date")),
                                   end_date=_parse_date(data.get("end_date")),
                                   extra=extra, remark=data.get("remark") or "")
     else:
         p = records.find_or_create_person(s, data)
         period = str(data.get("period") or "")
-        if defn.tag_type != "employment":  # 务工台账允许多条记录，不做去重
+        if not defn.multi:  # 务工/教育资助/医疗救助等多条流水台账不做去重
             tag = s.query(models.PersonTag).filter_by(
                 person_id=p.id, tag_type=defn.tag_type, period=period).first()
             if tag:
@@ -202,6 +240,12 @@ def update_row(key: str, rid: int, data: dict, request: Request, s=Depends(db.ge
         for k in records.BASE_PERSON_FIELDS:
             if k in data:
                 setattr(p, k, data[k])
+        if (data.get("hz_idcard") or "").strip():
+            hz_idcard = data["hz_idcard"].strip()
+            records.check_idcard(hz_idcard)
+            hz_name = (data.get("name") or p.name or "") if p.idcard == hz_idcard else ""
+            p.household_id = records.find_or_create_household(
+                s, {"hz_idcard": hz_idcard, "hz_name": hz_name}).id
         s.flush()
         audit.write(s, "编辑", defn.key, "person", rid, before, models.to_json(p), _ip(request))
         s.commit()

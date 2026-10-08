@@ -1,7 +1,3 @@
-export function isMobile() {
-  return window.innerWidth < 768
-}
-
 async function request(path, options = {}) {
   const opts = { credentials: 'same-origin', headers: {}, ...options }
   if (opts.body && !(opts.body instanceof FormData)) {

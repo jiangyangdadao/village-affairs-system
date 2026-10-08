@@ -89,6 +89,19 @@ class Project(Base):
     remark: Mapped[str] = mapped_column(Text, default="")
 
 
+class VisitLog(Base):
+    """防返贫监测户走访记录（挂靠 household）。"""
+    __tablename__ = "visit_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    household_id: Mapped[int] = mapped_column(Integer, index=True)
+    visit_date: Mapped[date] = mapped_column(Date, nullable=True)
+    visitor: Mapped[str] = mapped_column(String(50), default="")
+    risk_change: Mapped[str] = mapped_column(String(20), default="")   # 无变化/风险上升/风险下降/风险消除
+    need_help: Mapped[str] = mapped_column(String(10), default="")     # 否/是
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
 class Attachment(Base):
     __tablename__ = "attachment"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

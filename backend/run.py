@@ -3,8 +3,10 @@ import uvicorn
 
 from app.db import init_db
 from app.main import app
+from app import seed_demo
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     init_db()
+    seed_demo.maybe_seed()
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")

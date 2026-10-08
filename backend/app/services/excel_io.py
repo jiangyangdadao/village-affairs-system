@@ -25,7 +25,9 @@ TAG_P = [("start_date", "开始时间", False), ("end_date", "结束时间", Fal
 
 def _columns(defn):
     if defn.tag_type is None:
-        return P_HEADERS + [(f.key, f.label, f.required) for f in defn.fields]
+        # 居民信息：加“户主身份证”列用于导入时归并到户
+        return [("hz_idcard", "户主身份证", False)] + P_HEADERS + \
+            [(f.key, f.label, f.required) for f in defn.fields]
     if defn.scope == "household":
         return H_HEADERS + TAG_H + [(f.key, f.label, f.required) for f in defn.fields]
     return P_HEADERS + TAG_P + [(f.key, f.label, f.required) for f in defn.fields]
@@ -117,7 +119,10 @@ def parse_import(defn, file_bytes):
             key = label_map.get(label)
             if key:
                 data[key] = _parse_cell(ws.cell(r, c).value)
-        idcard = data.get("hz_idcard") or data.get("idcard") or ""
+        # 去重键按台账粒度区分：户级用户主身份证，人员级（含居民信息）用本人身份证，
+        # 否则同户多成员会因共享户主身份证被误判“文件内重复”
+        idcard = data.get("hz_idcard") if defn.scope == "household" else data.get("idcard")
+        idcard = (idcard or "").strip()
         if idcard and not IDCARD_RE.match(idcard):
             errors.append({"row": r, "msg": f"身份证号“{idcard}”位数不正确"})
             continue
@@ -156,26 +161,29 @@ def _merge_tag(tag, data: dict, extra: dict):
 def _apply_row(s, defn, data):
     extra_keys = {f.key for f in defn.fields}
     extra = {k: v for k, v in data.items() if k in extra_keys and v not in ("", None)}
-    for k in ("member_num", "monthly_amount", "payment_amount", "monthly_income", "monthly_pension"):
-        if k in extra and extra[k] not in ("", None):
-            try:
-                extra[k] = float(extra[k])
-            except ValueError:
-                extra[k] = extra[k]
-    from app.services.records import find_or_create_household, find_or_create_person
+    extra = records.coerce_numbers(extra)
     if defn.tag_type is None:
-        # 居民信息：按身份证存在与否区分新增/更新
+        # 居民信息：按户主身份证归并到户，再按本人身份证区分新增/更新
+        hz_idcard = (data.get("hz_idcard") or "").strip()
+        household_id = 0
+        if hz_idcard:
+            idcard = (data.get("idcard") or "").strip()
+            hz_name = (data.get("name") or "") if idcard == hz_idcard else ""
+            household_id = records.find_or_create_household(
+                s, {"hz_idcard": hz_idcard, "hz_name": hz_name}).id
         idcard = (data.get("idcard") or "").strip()
         p = s.query(models.Person).filter_by(idcard=idcard).first()
         if p:
+            if household_id:
+                p.household_id = household_id
             for k in records.BASE_PERSON_FIELDS:
                 if k in data and data[k] not in ("", None):
                     setattr(p, k, data[k])
             return "updated"
-        find_or_create_person(s, data)
+        records.find_or_create_person(s, data, household_id)
         return "added"
     if defn.scope == "household":
-        h = find_or_create_household(s, data)
+        h = records.find_or_create_household(s, data)
         tag = s.query(models.HouseholdTag).filter_by(
             household_id=h.id, tag_type=defn.tag_type).first()
         if tag:
@@ -187,9 +195,9 @@ def _apply_row(s, defn, data):
                                   end_date=_d(data.get("end_date")), extra=extra,
                                   remark=data.get("remark") or "")
     else:
-        p = find_or_create_person(s, data)
+        p = records.find_or_create_person(s, data)
         period = data.get("period") or ""
-        if defn.tag_type != "employment":  # 务工台账允许多条，不去重
+        if not defn.multi:  # 务工/教育资助/医疗救助等多条流水台账不去重
             tag = s.query(models.PersonTag).filter_by(
                 person_id=p.id, tag_type=defn.tag_type, period=period).first()
             if tag:
@@ -262,6 +270,8 @@ def export_all() -> bytes:
                 row = {}
                 if defn.tag_type is None:
                     row = {k: getattr(obj, k, "") for k, _, _ in cols}
+                    h = s.get(models.Household, obj.household_id)
+                    row["hz_idcard"] = h.hz_idcard if h else ""
                 elif defn.scope == "household":
                     h = s.get(models.Household, obj.household_id)
                     row = {"hz_name": h.hz_name if h else "", "hz_idcard": h.hz_idcard if h else "",

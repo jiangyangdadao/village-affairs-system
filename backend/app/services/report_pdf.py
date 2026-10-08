@@ -9,6 +9,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app import settings_store
+
 pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 
 RED = colors.HexColor("#B01B2E")
@@ -46,7 +48,8 @@ def build(data: dict) -> bytes:
                             leftMargin=18 * mm, rightMargin=18 * mm)
     story = []
     h = data["household"]
-    story.append(Paragraph("青 山 村 户 情 报 告", S_TITLE))
+    village_name = settings_store.get("village_name", "青山村")
+    story.append(Paragraph(" ".join(village_name) + " 户 情 报 告", S_TITLE))
     story.append(Paragraph(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}　数据截止：{datetime.now().strftime('%Y-%m-%d')}", S_N))
     story.append(Spacer(1, 10))
     story.append(Paragraph("一、户基本信息", S_H))
