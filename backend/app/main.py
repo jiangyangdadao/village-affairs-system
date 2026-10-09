@@ -76,8 +76,8 @@ app = create_app()
 
 def startup():
     db.init_db()
-    from app import seed_demo
-    seed_demo.maybe_seed()
+    from seed_demo import maybe_seed
+    maybe_seed()
 
 
 if __name__ == "__main__":
